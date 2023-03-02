@@ -68,7 +68,6 @@ Plugins\ignorestate.dll
 Plugins\import.dll
 Plugins\irc.dll
 Plugins\jabber.dll
-Plugins\jingle.dll
 Plugins\keyboardnotify.dll
 Plugins\linklist.dll
 Plugins\listeningto.dll
@@ -137,7 +136,6 @@ Plugins\steam.dll
 Plugins\stopspam.dll
 Plugins\stopspammod.dll
 Plugins\tabsrmm.dll
-Plugins\telegram.dll
 Plugins\tipper.dll
 Plugins\toaster.dll
 Plugins\tooltipnotify.dll
@@ -156,7 +154,6 @@ Plugins\watrack_mpd.dll
 Plugins\wbosd.dll
 Plugins\weather.dll
 Plugins\webview.dll
-Plugins\whatsapp.dll 
 Plugins\whenwasit.dll
 Plugins\whousesmyfiles.dll
 Plugins\winterspeak.dll
