@@ -6,7 +6,7 @@
 ;  Authors: Miranda NG team
 ;============================================================
 [Telegram protocol support for Miranda NG.]
-Wsparcie dla protokołu Telegram.
+Unterstützung für Telegram in Miranda NG.
 ;file \protocols\Telegram\res\resource.rc
 [Country:]
 Land:
@@ -15,7 +15,7 @@ Telefonnummer:
 [Default group:]
 Standardgruppe:
 [Device name:]
-
+Gerätename:
 [Do not open chat windows on creation]
 Chatfenster bei der Erzeugung nicht öffnen
 [If a contact goes Offline, set this status instead and cache it for given timeout in seconds (0 - disabled)]
@@ -32,7 +32,7 @@ Danach diesen Status setzen und nach folgender Anzahl Sekunden Offline setzen (0
 [Enter password]
 Passwort eingeben
 [ (hint: %s)]
-
+ (Hinweis: %s)
 [Secret code expired]
 
 [Error]
@@ -43,18 +43,18 @@ Fehler
 Falsches Passwort
 ;file \protocols\Telegram\src\groupchat.cpp
 [Creator]
-
+Ersteller
 [Admin]
 Administrator
 [Participant]
 Teilnehmer
 [SuperAdmin]
-
+SuperAdministrator
 [Visitor]
 Besucher
 ;file \protocols\Telegram\src\main.cpp
 [Premium user]
-
+Premiumnutzer
 ;file \protocols\Telegram\src\options.cpp
 [Network]
 Netzwerk
@@ -64,7 +64,7 @@ Konto
 Erweitert
 ;file \protocols\Telegram\src\server.cpp
 [%d member(s)]
-
+%d Mitglieder
 ;file \protocols\Telegram\src\utils.cpp
 [none]
 Keine

@@ -117,7 +117,7 @@ Aktiviere Einstellungen je Account
 [Hide account completely]
 Account nicht anzeigen
 [Show account names]
-
+Kontoname anzeigen
 [Show status name]
 Statusnamen anzeigen
 [Show xStatus name]
@@ -147,7 +147,7 @@ Abstand rechts
 [Contact list sorting]
 Sortierung der Kontaktliste
 [Move offline users to bottom]
-
+Offline-Nutzer nach unten setzen
 [1st:]
 1.:
 [2nd:]
@@ -725,9 +725,9 @@ Zeile
 (Unbekannter Kontakt)
 ;file \plugins\Clist_modern\src\modern_clui.cpp
 [Contract meta]
-
+Meta einklappen
 [Expand meta]
-
+Meta ausklappen
 [Show avatar]
 Avatar anzeigen
 [Hide avatar]

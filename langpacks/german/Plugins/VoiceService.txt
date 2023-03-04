@@ -36,16 +36,16 @@ Bei Rechtsklick:
 Bei Linksklick:
 [Preview]
 Vorschau
-[Show incoming call dialog immediately ]
-
+[Show incoming call dialog immediately]
+Dialog bei eingehenden Anrufen sofort anzeigen
 [Catch focus on this dialog]
-
+Fokus auf diesen Dialog legen
 [New Voice Call]
 Neuer Anruf
 [%s wants to start a voice call with you. What you want to do?\n\nIf you answer the call, the current call will be put on hold.]
 
 [Answer]
-Antwort
+Antworten
 [Drop]
 Auflegen
 [From now on, repeat this action for this contact]
@@ -57,9 +57,9 @@ Frame automatisch anpassen
 [Automatic Actions]
 Automatische Aktionen
 [Auto accept this contact calls]
-Anrufe vom diesen Kontakt immer annehmen
+Anrufe von diesem Kontakt immer annehmen
 [Auto drop this contacts calls]
-Anrufe von diesen Kontakt immer ablehnen
+Anrufe von diesem Kontakt immer ablehnen
 [Audio]
 Audio
 [Input:]
@@ -77,9 +77,9 @@ Sprachnachricht
 [Established]
 
 [M]
-
+M
 [V]
-
+V
 [Frame Popup]
 
 [Answer call]
@@ -106,17 +106,17 @@ Angehalten
 [Ended]
 Beendet
 [Busy]
-
+Beschäftigt
 [Ready]
 Bereit
 [Make Voice Call]
-
+Anruf machen
 [Answer Voice Call]
 Anruf annehmen
 [Hold Voice Call]
 Anruf anhalten
 [Drop Voice Call]
-Auflegen
+Anruf auflegen
 [Started talking]
 Gespräch gestartet
 [Calling a contact]
@@ -124,19 +124,19 @@ Ruft ein Kontakt an
 [Put a call on Hold]
 Hat ein Anruf angehalten
 [End of call]
-
+Ende des Anrufs
 [Busy signal]
-
+Besetzt-Zeichen
 [Call %s with %s]
-
+%s mit %s anrufen
 [Call with %s]
-
+Anrufen mit %s
 [Call]
 Anrufen
 [%s with %s]
-
+%s mit %s
 [with %s]
-
+mit %s
 [Voice Calls]
 Anrufe
 [Dialpad press]
@@ -168,9 +168,9 @@ Anruf beendet
 [Voice call ready]
 
 [Hold]
-
+Halten
 [Holded]
-
+Gehalten
 [Resume]
 Fortsetzen
 [Close]
@@ -180,6 +180,6 @@ Schließen
 [Cancel]
 Abbrechen
 [Unknown number]
-
+Unbekannte Nummer
 [Call is over %s]
 
