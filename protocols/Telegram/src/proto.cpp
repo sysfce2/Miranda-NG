@@ -59,8 +59,9 @@ CTelegramProto::CTelegramProto(const char* protoName, const wchar_t* userName) :
 	CreateProtoService(PS_GETMYAVATAR, &CTelegramProto::SvcGetMyAvatar);
 	CreateProtoService(PS_SETMYAVATAR, &CTelegramProto::SvcSetMyAvatar);
 
+	HookProtoEvent(ME_HISTORY_EMPTY, &CTelegramProto::OnEmptyHistory);
 	HookProtoEvent(ME_OPT_INITIALISE, &CTelegramProto::OnOptionsInit);
-
+	
 	// avatar
 	CreateDirectoryTreeW(GetAvatarPath());
 
@@ -91,12 +92,30 @@ CTelegramProto::~CTelegramProto()
 
 void CTelegramProto::OnContactDeleted(MCONTACT hContact)
 {
-	CMStringA szId(getMStringA(hContact, DBKEY_ID));
-	if (!szId.IsEmpty()) {
-		TD::array<TD::int53> ids;
-		ids.push_back(_atoi64(szId));
-		SendQuery(new TD::removeContacts(std::move(ids)));
+	TD::int53 id = _atoi64(getMStringA(hContact, DBKEY_ID));
+	if (id == 0)
+		return;
+
+	TD::array<TD::int53> ids;
+	ids.push_back(id);
+	SendQuery(new TD::removeContacts(std::move(ids)));
+
+	if (auto *pUser = FindUser(id)) {
+		pUser->hContact = INVALID_CONTACT_ID;
+		pUser->wszFirstName = getMStringW(hContact, "FirstName");
+		pUser->wszLastName = getMStringW(hContact, "LastName");
 	}
+}
+
+int CTelegramProto::OnEmptyHistory(WPARAM hContact, LPARAM)
+{
+	if (Proto_IsProtoOnContact(hContact, m_szModuleName)) {
+		TD::int53 id = _atoi64(getMStringA(hContact, DBKEY_ID));
+		if (auto *pUser = FindUser(id))
+			SendQuery(new TD::deleteChatHistory(pUser->chatId, true, true));
+	}
+
+	return 0;
 }
 
 void CTelegramProto::OnModulesLoaded()
@@ -139,6 +158,23 @@ void CTelegramProto::OnShutdown()
 	m_bTerminated = true;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////
+
+void CTelegramProto::OnBuildProtoMenu()
+{
+	CMenuItem mi(&g_plugin);
+	mi.root = Menu_GetProtocolRoot(this);
+	mi.flags = CMIF_UNMOVABLE;
+
+	// Groups uploader
+	mi.pszService = "/UploadGroups";
+	CreateProtoService(mi.pszService, &CTelegramProto::AddByPhone);
+	mi.name.a = LPGEN("Add phone contact");
+	mi.position = 200001;
+	mi.hIcolibItem = Skin_GetIconHandle(SKINICON_OTHER_ADDCONTACT);
+	Menu_AddProtoMenuItem(&mi, m_szModuleName);
+}
+
 void CTelegramProto::OnErase()
 {
 	m_bUnregister = true;
@@ -147,28 +183,55 @@ void CTelegramProto::OnErase()
 	DeleteDirectoryTreeW(GetProtoFolder(), false);
 }
 
+void CTelegramProto::OnEventDeleted(MCONTACT hContact, MEVENT hDbEvent)
+{
+	if (!hContact)
+		return;
+
+	ptrA userId(getStringA(hContact, DBKEY_ID));
+	if (!userId)
+		return;
+
+	DBEVENTINFO dbei = {};
+	db_event_get(hDbEvent, &dbei);
+	if (dbei.szId) {
+		mir_cslock lck(m_csDeleteMsg);
+		if (m_deleteMsgContact) {
+			if (m_deleteMsgContact != hContact)
+				SendDeleteMsg();
+
+			m_impl.m_deleteMsg.Stop();
+		}
+
+		m_deleteMsgContact = hContact;
+		m_deleteIds.push_back(_atoi64(dbei.szId));
+		m_impl.m_deleteMsg.Start(500);
+	}
+}
+
 void CTelegramProto::OnMarkRead(MCONTACT hContact, MEVENT hDbEvent)
 {
 	if (!hContact)
 		return;
 
 	ptrA userId(getStringA(hContact, DBKEY_ID));
-	if (userId) {
-		DBEVENTINFO dbei = {};
-		db_event_get(hDbEvent, &dbei);
-		if (dbei.szId) {
-			mir_cslock lck(m_csMarkRead);
-			if (m_markContact) {
-				if (m_markContact != hContact)
-					SendMarkRead();
+	if (!userId)
+		return;
 
-				m_impl.m_markRead.Stop();
-			}
+	DBEVENTINFO dbei = {};
+	db_event_get(hDbEvent, &dbei);
+	if (dbei.szId) {
+		mir_cslock lck(m_csMarkRead);
+		if (m_markContact) {
+			if (m_markContact != hContact)
+				SendMarkRead();
 
-			m_markContact = hContact;
-			m_markIds.push_back(_atoi64(dbei.szId));
-			m_impl.m_markRead.Start(500);
+			m_impl.m_markRead.Stop();
 		}
+
+		m_markContact = hContact;
+		m_markIds.push_back(_atoi64(dbei.szId));
+		m_impl.m_markRead.Start(500);
 	}
 }
 
@@ -184,7 +247,12 @@ MCONTACT CTelegramProto::AddToList(int flags, PROTOSEARCHRESULT *psr)
 	if (flags & PALF_TEMPORARY)
 		Contact::RemoveFromList(pUser->hContact);
 
-	auto cc = TD::make_object<TD::contact>(); cc->user_id_ = id;
+	auto cc = TD::make_object<TD::contact>(); 
+	cc->user_id_ = id;
+	if (psr->firstName.w)
+		cc->first_name_ = T2Utf(psr->firstName.w);
+	if (psr->lastName.w)
+		cc->last_name_ = T2Utf(psr->lastName.w);
 	SendQuery(new TD::addContact(std::move(cc), false));
 	return pUser->hContact;
 }

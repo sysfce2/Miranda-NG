@@ -96,6 +96,16 @@ void CTelegramProto::SendKeepAlive()
 	}
 }
 
+void CTelegramProto::SendDeleteMsg()
+{
+	m_impl.m_deleteMsg.Stop();
+
+	mir_cslock lck(m_csDeleteMsg);
+	int64_t userId = _atoi64(getMStringA(m_deleteMsgContact, DBKEY_ID));
+	SendQuery(new TD::deleteMessages(userId, std::move(m_deleteIds), true));
+	m_markContact = 0;
+}
+
 void CTelegramProto::SendMarkRead()
 {
 	m_impl.m_markRead.Stop();
@@ -138,12 +148,24 @@ void CTelegramProto::ProcessResponse(td::ClientManager::Response response)
 		ProcessGroups((TD::updateChatFilters *)response.object.get());
 		break;
 
+	case TD::updateChatLastMessage::ID:
+		ProcessChatLastMessage((TD::updateChatLastMessage *)response.object.get());
+		break;
+
+	case TD::updateChatNotificationSettings::ID:
+		ProcessChatNotification((TD::updateChatNotificationSettings*)response.object.get());
+		break;
+
 	case TD::updateChatPosition::ID:
 		ProcessChatPosition((TD::updateChatPosition *)response.object.get());
 		break;
 
 	case TD::updateChatReadInbox::ID:
 		ProcessMarkRead((TD::updateChatReadInbox *)response.object.get());
+		break;
+
+	case TD::updateDeleteMessages::ID:
+		ProcessDeleteMessage((TD::updateDeleteMessages*)response.object.get());
 		break;
 
 	case TD::updateFile::ID:
@@ -286,12 +308,9 @@ void CTelegramProto::ProcessChat(TD::updateNewChat *pObj)
 		break;
 
 	case TD::chatTypeSupergroup::ID:
+		bIsBasicGroup = false;
+		chatId = ((TD::chatTypeSupergroup *)pChat->type_.get())->supergroup_id_;
 		szTitle = pChat->title_;
-		{
-			auto *pSuperGroup = (TD::chatTypeSupergroup *)pChat->type_.get();
-			chatId = pSuperGroup->supergroup_id_;
-			bIsBasicGroup = !pSuperGroup->is_channel_;
-		}
 		break;
 
 	default:
@@ -319,6 +338,42 @@ void CTelegramProto::ProcessChat(TD::updateNewChat *pObj)
 			InitGroupChat(pUser, pChat, bIsBasicGroup);
 	}
 	else debugLogA("Unknown chat id %lld, ignoring", chatId);
+}
+
+void CTelegramProto::ProcessChatLastMessage(TD::updateChatLastMessage *pObj)
+{
+	auto *pUser = FindChat(pObj->chat_id_);
+	if (pUser == nullptr) {
+		debugLogA("Unknown chat, skipping");
+		return;
+	}
+
+	if (pUser->hContact == INVALID_CONTACT_ID) {
+		debugLogA("Last message for a temporary contact, skipping");
+		return;
+	}
+
+	// according to #3406 we wipe history for the contacts from contacts' list
+	// but remove the contact itself if it's a temporary one
+	if (pObj->last_message_ == nullptr) {
+		if (Contact::OnList(pUser->hContact))
+			CallService(MS_HISTORY_EMPTY, pUser->hContact, TRUE);
+		else
+			db_delete_contact(pUser->hContact, true);
+	}
+}
+
+void CTelegramProto::ProcessChatNotification(TD::updateChatNotificationSettings *pObj)
+{
+	auto *pUser = FindChat(pObj->chat_id_);
+	if (pUser == nullptr || pUser->hContact == INVALID_CONTACT_ID)
+		return;
+
+	auto &pSettings = pObj->notification_settings_;
+	if (!pSettings->use_default_mute_for_ && pSettings->mute_for_ != 0)
+		Chat_Mute(pUser->hContact, CHATMODE_MUTE);
+	else
+		Chat_Mute(pUser->hContact, CHATMODE_NORMAL);
 }
 
 void CTelegramProto::ProcessChatPosition(TD::updateChatPosition *pObj)
@@ -353,6 +408,25 @@ void CTelegramProto::ProcessChatPosition(TD::updateChatPosition *pObj)
 				Clist_SetGroup(pUser->hContact, wszNewGroup);
 			}
 		}
+	}
+}
+
+void CTelegramProto::ProcessDeleteMessage(TD::updateDeleteMessages *pObj)
+{
+	if (!pObj->is_permanent_)
+		return;
+
+	auto *pUser = FindChat(pObj->chat_id_);
+	if (pUser == nullptr || pUser->hContact == INVALID_CONTACT_ID) {
+		debugLogA("message from unknown chat, ignored");
+		return;
+	}
+
+	for (auto &it : pObj->message_ids_) {
+		char id[100];
+		_i64toa(it, id, 10);
+		if (MEVENT hEvent = db_event_getById(m_szModuleName, id))
+			db_event_delete(hEvent, true);
 	}
 }
 
@@ -429,6 +503,17 @@ void CTelegramProto::ProcessMessage(TD::updateNewMessage *pObj)
 		return;
 	}
 
+	// make a temporary contact if needed
+	if (pUser->hContact == INVALID_CONTACT_ID) {
+		if (pUser->isGroupChat) {
+			debugLogA("spam from unknown group chat, ignored");
+			return;
+		}
+		
+		AddUser(pUser->id, false);
+		Contact::RemoveFromList(pUser->hContact);
+	}
+
 	char szId[100], szUserId[100];
 	_i64toa(pMessage->id_, szId, 10);
 
@@ -438,8 +523,14 @@ void CTelegramProto::ProcessMessage(TD::updateNewMessage *pObj)
 	pre.timestamp = pMessage->date_;
 	if (pMessage->is_outgoing_)
 		pre.flags |= PREF_SENT;
-	if (pUser->isGroupChat)
-		pre.szUserId = getSender(pMessage->sender_id_.get(), szUserId, sizeof(szUserId));
+	if (pUser->isGroupChat) {
+		if (auto *pSender = GetSender(pMessage->sender_id_.get())) {
+			_i64toa(pSender->id, szUserId, 10);
+			pre.szUserId = szUserId;
+			if (pUser->m_si)
+				g_chatApi.UM_AddUser(pUser->m_si, Utf2T(szUserId), pSender->getDisplayName(), ID_STATUS_ONLINE);
+		}
+	}
 	ProtoChainRecvMsg(pUser->hContact, &pre);
 }
 
@@ -498,9 +589,11 @@ void CTelegramProto::ProcessUser(TD::updateUser *pObj)
 			m_arChats.insert(pMe);
 		}
 	}
-
-	if (!pUser->is_contact_) {
+	else if (!pUser->is_contact_) {
 		auto *pu = AddFakeUser(pUser->id_, false);
+		if (pu->hContact != INVALID_CONTACT_ID)
+			Contact::RemoveFromList(pu->hContact);
+
 		pu->wszFirstName = Utf2T(pUser->first_name_.c_str());
 		pu->wszLastName = Utf2T(pUser->last_name_.c_str());
 		if (pUser->usernames_) {
@@ -527,6 +620,7 @@ void CTelegramProto::ProcessUser(TD::updateUser *pObj)
 		UpdateString(pu->hContact, "Nick", pUser->usernames_->editable_username_);
 	if (pu->hContact == 0)
 		pu->wszNick = Contact::GetInfo(CNF_DISPLAY, 0, m_szModuleName);
+	Contact::PutOnList(pu->hContact);
 
 	if (pUser->is_premium_)
 		ExtraIcon_SetIconByName(g_plugin.m_hIcon, pu->hContact, "tg_premium");

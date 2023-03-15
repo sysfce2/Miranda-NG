@@ -91,6 +91,8 @@ struct TG_USER
 	CMStringW wszNick, wszFirstName, wszLastName;
 	time_t    m_timer1 = 0, m_timer2 = 0;
 	SESSION_INFO *m_si = nullptr;
+
+	CMStringW getDisplayName() const;
 };
 
 struct TG_SUPER_GROUP
@@ -117,14 +119,20 @@ struct TG_BASIC_GROUP
 
 class CTelegramProto : public PROTO<CTelegramProto>
 {
+	friend class CAddPhoneContactDlg;
+
 	class CProtoImpl
 	{
 		friend class CTelegramProto;
 		CTelegramProto &m_proto;
 
-		CTimer m_keepAlive, m_markRead;
+		CTimer m_keepAlive, m_markRead, m_deleteMsg;
 		void OnKeepAlive(CTimer *)
 		{	m_proto.SendKeepAlive();
+		}
+
+		void OnDeleteMsg(CTimer *)
+		{	m_proto.SendDeleteMsg();
 		}
 
 		void OnMarkRead(CTimer *)
@@ -134,9 +142,11 @@ class CTelegramProto : public PROTO<CTelegramProto>
 		CProtoImpl(CTelegramProto &pro) :
 			m_proto(pro),
 			m_markRead(Miranda_GetSystemWindow(), UINT_PTR(this)),
-			m_keepAlive(Miranda_GetSystemWindow(), UINT_PTR(this)+1)
+			m_keepAlive(Miranda_GetSystemWindow(), UINT_PTR(this)+1),
+			m_deleteMsg(Miranda_GetSystemWindow(), UINT_PTR(this)+2)
 		{
 			m_markRead.OnEvent = Callback(this, &CProtoImpl::OnMarkRead);
+			m_deleteMsg.OnEvent = Callback(this, &CProtoImpl::OnDeleteMsg);
 			m_keepAlive.OnEvent = Callback(this, &CProtoImpl::OnKeepAlive);
 		}
 	} m_impl;
@@ -151,6 +161,10 @@ class CTelegramProto : public PROTO<CTelegramProto>
 	mir_cs m_csMarkRead;
 	MCONTACT m_markContact = 0;
 	TD::array<TD::int53> m_markIds;
+
+	mir_cs m_csDeleteMsg;
+	MCONTACT m_deleteMsgContact = 0;
+	TD::array<TD::int53> m_deleteIds;
 
 	bool m_bAuthorized, m_bTerminated, m_bUnregister = false, m_bSmileyAdd = false;
 	int32_t m_iClientId, m_iMsgId;
@@ -179,6 +193,7 @@ class CTelegramProto : public PROTO<CTelegramProto>
 	void ProcessResponse(td::ClientManager::Response);
 
 	void SendKeepAlive(void);
+	void SendDeleteMsg(void);
 	void SendMarkRead(void);
 	void SendQuery(TD::Function *pFunc, TG_QUERY_HANDLER pHandler = nullptr);
 	void SendQuery(TD::Function *pFunc, TG_QUERY_HANDLER_FULL pHandler, void *pUserInfo);
@@ -187,7 +202,10 @@ class CTelegramProto : public PROTO<CTelegramProto>
 	void ProcessAuth(TD::updateAuthorizationState *pObj);
 	void ProcessBasicGroup(TD::updateBasicGroup *pObj);
 	void ProcessChat(TD::updateNewChat *pObj);
+	void ProcessChatLastMessage(TD::updateChatLastMessage *pObj);
+	void ProcessChatNotification(TD::updateChatNotificationSettings *pObj);
 	void ProcessChatPosition(TD::updateChatPosition *pObj);
+	void ProcessDeleteMessage(TD::updateDeleteMessages *pObj);
 	void ProcessFile(TD::updateFile *pObj);
 	void ProcessGroups(TD::updateChatFilters *pObj);
 	void ProcessMarkRead(TD::updateChatReadInbox *pObj);
@@ -214,6 +232,8 @@ class CTelegramProto : public PROTO<CTelegramProto>
 
 	void InitGroupChat(TG_USER *pUser, const TD::chat *pChat, bool bUpdateMembers);
 	void StartGroupChat(td::ClientManager::Response &response, void *pUserData);
+	
+	void Chat_SendPrivateMessage(GCHOOK *gch);
 
 	// Search
 	TD::array<TD::int53> m_searchIds;
@@ -231,6 +251,7 @@ class CTelegramProto : public PROTO<CTelegramProto>
 	TG_USER* FindUser(int64_t id);
 	TG_USER* AddUser(int64_t id, bool bIsChat);
 	TG_USER* AddFakeUser(int64_t id, bool bIsChat);
+	TG_USER* GetSender(const TD::MessageSender *pSender);
 	void     SetId(MCONTACT, int64_t id);
 
 	// Popups
@@ -260,9 +281,11 @@ public:
 	HANDLE   SearchByName(const wchar_t *nick, const wchar_t *firstName, const wchar_t *lastName) override;
 	int      SendMsg(MCONTACT hContact, int flags, const char *pszMessage) override;
 	int      SetStatus(int iNewStatus) override;
-			   
+		
+	void     OnBuildProtoMenu() override;
 	void     OnContactDeleted(MCONTACT hContact) override;
 	MWindow  OnCreateAccMgrUI(MWindow hwndParent) override;
+	void     OnEventDeleted(MCONTACT, MEVENT) override;
 	void     OnMarkRead(MCONTACT, MEVENT) override;
 	void     OnModulesLoaded() override;
 	void     OnShutdown() override;
@@ -270,10 +293,15 @@ public:
 
 	// Events ////////////////////////////////////////////////////////////////////////////
 	
+	int __cdecl OnEmptyHistory(WPARAM, LPARAM);
 	int __cdecl OnOptionsInit(WPARAM, LPARAM);
 
 	int __cdecl GcMenuHook(WPARAM, LPARAM);
 	int __cdecl GcEventHook(WPARAM, LPARAM);
+
+	// Services //////////////////////////////////////////////////////////////////////////
+
+	INT_PTR __cdecl AddByPhone(WPARAM, LPARAM);
 
 	// Options ///////////////////////////////////////////////////////////////////////////
 	
@@ -292,3 +320,5 @@ public:
 
 	void __cdecl ServerThread(void *);
 };
+
+typedef CProtoDlgBase<CTelegramProto> CTelegramDlgBase;

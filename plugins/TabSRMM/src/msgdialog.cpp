@@ -572,6 +572,9 @@ bool CMsgDialog::OnInitDialog()
 		UpdateTitle();
 		m_hTabIcon = m_hTabStatusIcon;
 
+		if (!m_SendFormat)
+			ShowMultipleControls(m_hwnd, formatControls, _countof(formatControls), SW_HIDE);
+
 		UpdateNickList();
 		UpdateChatLog();
 	}
@@ -2484,13 +2487,6 @@ INT_PTR CMsgDialog::DlgProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 		}
 		else if (m_hContact == wParam && db_mc_isSub(wParam) && db_event_getContact(lParam) != wParam)
 			StreamEvents(lParam, 1, 1);
-		return 0;
-
-	case HM_DBEVENTADDED:
-		// this is called whenever a new event has been added to the database.
-		// this CAN be posted (some sanity checks required).
-		if (this && !isChat())
-			DM_EventAdded(m_hContact, lParam);
 		return 0;
 
 	case WM_TIMER:

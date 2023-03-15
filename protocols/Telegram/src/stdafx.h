@@ -19,11 +19,14 @@
 #include <m_contacts.h>
 #include <m_database.h>
 #include <m_extraicons.h>
+#include <m_history.h>
 #include <m_icolib.h>
 #include <m_langpack.h>
+#include <m_message.h>
 #include <m_netlib.h>
 #include <m_options.h>
 #include <m_popup.h>
+#include <m_skin.h>
 #include <m_smileyadd.h>
 
 #include "../../libs/freeimage/src/FreeImage.h"

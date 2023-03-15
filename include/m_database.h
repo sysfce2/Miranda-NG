@@ -289,7 +289,7 @@ EXTERN_C MIR_CORE_DLL(int) db_event_count(MCONTACT hContact);
 // Returns 0 on success, or nonzero if hDbEvent was invalid
 // Triggers a db/event/deleted event just *before* the event is deleted
 
-EXTERN_C MIR_CORE_DLL(int) db_event_delete(MEVENT hDbEvent);
+EXTERN_C MIR_CORE_DLL(int) db_event_delete(MEVENT hDbEvent, bool bFromServer = false);
 
 // Edits an event in the database
 // Returns 0 on success, or nonzero on error
@@ -388,6 +388,7 @@ EXTERN_C MIR_CORE_DLL(char*)    db_get_utfa(MCONTACT hContact, const char *szMod
 EXTERN_C MIR_CORE_DLL(wchar_t*) db_get_wsa(MCONTACT hContact, const char *szModule, const char *szSetting, const wchar_t *szValue = nullptr);
 
 MIR_CORE_DLL(CMStringA)         db_get_sm(MCONTACT hContact, const char *szModule, const char *szSetting, const char *szValue = nullptr);
+MIR_CORE_DLL(CMStringA)         db_get_usm(MCONTACT hContact, const char *szModule, const char *szSetting, const char *szValue = nullptr);
 MIR_CORE_DLL(CMStringW)         db_get_wsm(MCONTACT hContact, const char *szModule, const char *szSetting, const wchar_t *szValue = nullptr);
 
 EXTERN_C MIR_CORE_DLL(int)      db_get_static(MCONTACT hContact, const char *szModule, const char *szSetting, char *pDest, int cbDest);

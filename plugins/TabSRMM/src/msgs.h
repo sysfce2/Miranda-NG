@@ -70,7 +70,6 @@
 #define EM_REFRESHWITHOUTCLIP    (TM_USER+0x106)
 
 #define HM_EVENTSENT             (TM_USER+10)
-#define HM_DBEVENTADDED          (TM_USER+12)
 #define DM_SETINFOPANEL          (TM_USER+13)
 #define DM_OPTIONSAPPLIED        (TM_USER+14)
 #define DM_SPLITSENDACK          (TM_USER+19)
@@ -437,7 +436,6 @@ class CMsgDialog : public CSrmmBaseDialog
 	HWND     DM_CreateClist(void);
 	void     DM_DismissTip(const POINT& pt);
 	void     DM_ErrorDetected(int type, int flag);
-	void     DM_EventAdded(WPARAM wParam, LPARAM lParam);
 	void     DM_FreeTheme(void);
 	bool     DM_GenericHotkeysCheck(MSG *message);
 	void     DM_HandleAutoSizeRequest(REQRESIZE *rr);
@@ -457,7 +455,7 @@ class CMsgDialog : public CSrmmBaseDialog
 	void     DetermineMinHeight(void);
 	BOOL     DoRtfToTags(CMStringW &pszText) const;
 	int      FindRTLLocale(void);
-	void     FlashOnClist(MEVENT hEvent, DBEVENTINFO *dbei);
+	void     FlashOnClist(MEVENT hEvent, const DBEVENTINFO *dbei);
 	void     FlashTab(bool bInvertMode);
 	LRESULT  GetSendButtonState();
 	void     GetSendFormat(void);
@@ -621,11 +619,11 @@ public:
 
 	void onDblClick_List(CCtrlListBox *);
 
-	int OnFilter(MSGFILTER *);
+	int  OnFilter(MSGFILTER *);
 
 	bool OnInitDialog() override;
 	void OnDestroy() override;
-	int Resizer(UTILRESIZECONTROL *urc) override;
+	int  Resizer(UTILRESIZECONTROL *urc) override;
 
 	INT_PTR DlgProc(UINT msg, WPARAM wParam, LPARAM lParam) override;
 	LRESULT WndProc_Message(UINT msg, WPARAM wParam, LPARAM lParam) override;
@@ -633,6 +631,7 @@ public:
 
 	void AddLog() override;
 	void CloseTab() override;
+	void EventAdded(MEVENT, const DBEVENTINFO &dbei) override;
 	bool GetFirstEvent() override;
 	bool IsActive() const override;
 	void LoadSettings() override;
@@ -668,43 +667,44 @@ public:
 
 	void LogEvent(DBEVENTINFO &dbei);
 
-	void    DM_OptionsApplied(bool bRemakeLog = true);
-	void    DM_RecalcPictureSize(void);
-	void    DM_ScrollToBottom(WPARAM wParam, LPARAM lParam);
-		     
-	void    ActivateTooltip(int iCtrlId, const wchar_t *pwszMessage);
-	void    CheckStatusIconClick(POINT pt, const RECT &rc, int gap, int code);
-	void    DrawStatusIcons(HDC hDC, const RECT &rc, int gap);
-	void    EnableSendButton(bool bMode) const;
-	void    EnableSending(bool bMode) const;
-	void    FormatRaw(CMStringW&, int flags, bool isSent);
-	bool    FormatTitleBar(const wchar_t *szFormat, CMStringW &dest);
-	bool    GetAvatarVisibility(void);
-	void    GetClientIcon(void);
-	HICON   GetMyContactIcon(const CMOption<bool> *opt);
-	void    GetMyNick(void);
-	HICON   IconFromAvatar(void) const;
-	void    KbdState(bool &isShift, bool &isControl, bool &isAlt);
-	void    LimitMessageText(int iLen);
-	int     LoadLocalFlags(void);
-	void    NotifyDeliveryFailure(void) const;
-	void    RemakeLog(void);
-	void    SaveSplitter(void);
-	void    SelectContainer(void);
-	void    SetDialogToType(void);
-	void    ShowPicture(bool showNewPic);
-	void    SplitterMoved(int x, HWND hwnd);
-	void    SwitchToContainer(const wchar_t *szNewName);
-	int     Typing(int secs);
-	void    UpdateReadChars(void) const;
-	void    UpdateSaveAndSendButton(void);
+	void DM_OptionsApplied(bool bRemakeLog = true);
+	void DM_RecalcPictureSize(void);
+	void DM_ScrollToBottom(WPARAM wParam, LPARAM lParam);
+		  
+	void ActivateTooltip(int iCtrlId, const wchar_t *pwszMessage);
+	void CheckStatusIconClick(POINT pt, const RECT &rc, int gap, int code);
+	void DrawStatusIcons(HDC hDC, const RECT &rc, int gap);
+	void EnableSendButton(bool bMode) const;
+	void EnableSending(bool bMode) const;
+	void FormatRaw(CMStringW&, int flags, bool isSent);
+	bool FormatTitleBar(const wchar_t *szFormat, CMStringW &dest);
+	bool GetAvatarVisibility(void);
+	void GetClientIcon(void);
+	void GetMyNick(void);
+	void KbdState(bool &isShift, bool &isControl, bool &isAlt);
+	void LimitMessageText(int iLen);
+	int  LoadLocalFlags(void);
+	void NotifyDeliveryFailure(void) const;
+	void RemakeLog(void);
+	void SaveSplitter(void);
+	void SelectContainer(void);
+	void SetDialogToType(void);
+	void ShowPicture(bool showNewPic);
+	void SplitterMoved(int x, HWND hwnd);
+	void SwitchToContainer(const wchar_t *szNewName);
+	int  Typing(int secs);
+	void UpdateReadChars(void) const;
+	void UpdateSaveAndSendButton(void);
 
-	int     MsgWindowDrawHandler(DRAWITEMSTRUCT *dis);
-	int     MsgWindowMenuHandler(int selection, int menuId);
-	int     MsgWindowUpdateMenu(HMENU submenu, int menuID);
-		     
-	void    RenderToolbarBG(HDC hdc, const RECT &rcWindow) const;
-	void    UpdateToolbarBG(void);
+	int  MsgWindowDrawHandler(DRAWITEMSTRUCT *dis);
+	int  MsgWindowMenuHandler(int selection, int menuId);
+	int  MsgWindowUpdateMenu(HMENU submenu, int menuID);
+		  
+	void RenderToolbarBG(HDC hdc, const RECT &rcWindow) const;
+	void UpdateToolbarBG(void);
+
+	HICON GetMyContactIcon(const CMOption<bool> *opt);
+	HICON IconFromAvatar(void) const;
 };
 
 extern LIST<void> g_arUnreadWindows;
@@ -717,21 +717,21 @@ extern LIST<void> g_arUnreadWindows;
 
 struct myTabCtrl
 {
-	HPEN    m_hPenShadow, m_hPenItemShadow, m_hPenLight;
-	HFONT   m_hMenuFont;
+	HPEN     m_hPenShadow, m_hPenItemShadow, m_hPenLight;
+	HFONT    m_hMenuFont;
 	COLORREF colors[10];
-	HBRUSH  m_brushes[4];
-	uint32_t   m_fixedwidth;
-	int     m_bottomAdjust;
+	HBRUSH   m_brushes[4];
+	uint32_t m_fixedwidth;
+	int      m_bottomAdjust;
 };
 
 struct TIconDesc
 {
-	char   *szName;
-	char   *szDesc;
-	HICON  *phIcon;       // where the handle is saved...
-	INT_PTR uId;           // icon ID
-	BOOL    bForceSmall;   // true: force 16x16
+	char    *szName;
+	char    *szDesc;
+	HICON   *phIcon;       // where the handle is saved...
+	INT_PTR  uId;           // icon ID
+	BOOL     bForceSmall;   // true: force 16x16
 };
 
 struct TIconDescW

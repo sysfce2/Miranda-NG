@@ -36,9 +36,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /////////////////////////////////////////////////////////////////////////////////////////
 // Empties contact's history
 // wParam = (MCONTACT)hContact
-// lParam = 0 (unused)
+// lParam = (BOOL)bForce - force history deletion, don't ask questions
 // hContact can be NULL to wipe system history
 
 #define MS_HISTORY_EMPTY "History/EmptyHistory"
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// Event called when someone gonna wipe contact's history
+// wParam = (MCONTACT)hContact
+// hContact can be NULL to wipe system history
+// returns 0 if the core should wipe local history or any other value to cancel wiping
+
+#define ME_HISTORY_EMPTY "History/OnEmptyHistory"
 
 #endif // M_HISTORY_H__
