@@ -259,6 +259,8 @@ MIR_APP_DLL(SESSION_INFO*) Chat_NewSession(
 	else
 		wcsncpy_s(szTemp, si->ptszName, _TRUNCATE);
 	si->hContact = AddRoom(pszModule, ptszID, szTemp, si->iType);
+	si->iLogPopupFlags = db_get_dw(0, CHAT_MODULE, "PopupFlags", GC_EVENT_HIGHLIGHT);
+	si->iLogTrayFlags = db_get_dw(0, CHAT_MODULE, "TrayIconFlags", GC_EVENT_HIGHLIGHT);
 	db_set_s(si->hContact, si->pszModule, "Topic", "");
 	db_unset(si->hContact, "CList", "StatusMsg");
 	if (si->ptszStatusbarText)
@@ -487,12 +489,12 @@ static BOOL HandleChatEvent(GCEVENT &gce, int bManyFix)
 
 	case GC_EVENT_ADDSTATUS:
 		SM_GiveStatus(si, gce.pszUID.w, gce.pszStatus.w);
-		bIsHighlighted = g_chatApi.IsHighlighted(nullptr, &gce);
+		bIsHighlighted = g_chatApi.IsHighlighted(si, &gce);
 		break;
 
 	case GC_EVENT_REMOVESTATUS:
 		SM_TakeStatus(si, gce.pszUID.w, gce.pszStatus.w);
-		bIsHighlighted = g_chatApi.IsHighlighted(nullptr, &gce);
+		bIsHighlighted = g_chatApi.IsHighlighted(si, &gce);
 		break;
 
 	case GC_EVENT_MESSAGE:
@@ -504,7 +506,7 @@ static BOOL HandleChatEvent(GCEVENT &gce, int bManyFix)
 
 	case GC_EVENT_NICK:
 		SM_ChangeNick(si, &gce);
-		bIsHighlighted = g_chatApi.IsHighlighted(nullptr, &gce);
+		bIsHighlighted = g_chatApi.IsHighlighted(si, &gce);
 		break;
 
 	case GC_EVENT_TYPING:
@@ -512,14 +514,14 @@ static BOOL HandleChatEvent(GCEVENT &gce, int bManyFix)
 
 	case GC_EVENT_JOIN:
 		AddUser(&gce);
-		bIsHighlighted = g_chatApi.IsHighlighted(nullptr, &gce);
+		bIsHighlighted = g_chatApi.IsHighlighted(si, &gce);
 		break;
 
 	case GC_EVENT_PART:
 	case GC_EVENT_QUIT:
 	case GC_EVENT_KICK:
 		bRemoveFlag = TRUE;
-		bIsHighlighted = g_chatApi.IsHighlighted(nullptr, &gce);
+		bIsHighlighted = g_chatApi.IsHighlighted(si, &gce);
 		break;
 	}
 

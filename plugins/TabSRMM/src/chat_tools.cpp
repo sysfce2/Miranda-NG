@@ -152,7 +152,7 @@ BOOL DoPopup(SESSION_INFO *si, GCEVENT *gce)
 	char *szProto = dat ? dat->m_szProto : si->pszModule;
 	if (szProto != nullptr) {
 		int dwStatus = Proto_GetStatus(szProto);
-		if (!(dwStatus == 0 || dwStatus <= ID_STATUS_OFFLINE))
+		if (dwStatus == 0 || dwStatus <= ID_STATUS_OFFLINE)
 			return 0;
 	}
 
@@ -192,7 +192,7 @@ passed:
 
 	if (iNewEvent == GC_EVENT_MESSAGE) {
 		ShowPopup(si->hContact, si, g_chatApi.getIcon(GC_EVENT_MESSAGE), si->pszModule, si->ptszName, clr ? clr : g_chatApi.aFonts[9].color,
-			TranslateT("%s%s says:%s %s"), bbStart, gce->pszNick.w, bbEnd, g_chatApi.RemoveFormatting(gce->pszText.w));
+			L"%s%s:%s %s", bbStart, gce->pszNick.w, bbEnd, g_chatApi.RemoveFormatting(gce->pszText.w));
 	}
 	else oldDoPopup(si, gce);
 
