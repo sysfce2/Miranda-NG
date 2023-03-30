@@ -491,7 +491,7 @@ void CMsgDialog::onClick_ShowList(CCtrlButton *pButton)
 		return;
 
 	m_bNicklistEnabled = !m_bNicklistEnabled;
-	pButton->SendMsg(BM_SETIMAGE, IMAGE_ICON, (LPARAM)g_plugin.getIcon(m_bNicklistEnabled ? IDI_NICKLIST2 : IDI_NICKLIST));
+	UpdateFilterButton();
 	m_pLog->ScrollToBottom();
 	Resize();
 }
@@ -502,7 +502,8 @@ void CMsgDialog::onClick_Filter(CCtrlButton *pButton)
 		return;
 
 	m_bFilterEnabled = !m_bFilterEnabled;
-	pButton->SendMsg(BM_SETIMAGE, IMAGE_ICON, (LPARAM)g_plugin.getIcon(m_bFilterEnabled ? IDI_FILTER2 : IDI_FILTER));
+	UpdateFilterButton();
+
 	if (m_bFilterEnabled && !g_chatApi.bRightClickFilter)
 		ShowFilterMenu();
 	else
@@ -763,11 +764,11 @@ INT_PTR CLogWindow::WndProc(UINT msg, WPARAM wParam, LPARAM lParam)
 
 	switch (msg) {
 	case WM_MEASUREITEM:
-		MeasureMenuItem(wParam, lParam);
+		Menu_MeasureItem(lParam);
 		return TRUE;
 
 	case WM_DRAWITEM:
-		return DrawMenuItem(wParam, lParam);
+		return Menu_DrawItem(lParam);
 	}
 
 	return CSuper::WndProc(msg, wParam, lParam);
@@ -1068,7 +1069,7 @@ INT_PTR CMsgDialog::DlgProc(UINT msg, WPARAM wParam, LPARAM lParam)
 			FixTabIcons();
 			if (!m_si->pDlg) {
 				g_chatApi.ShowRoom(m_si);
-				SendMessage(m_hwnd, WM_MOUSEACTIVATE, 0, 0);
+				SendMessage(m_hwnd, WM_ACTIVATE, WA_ACTIVE, 0);
 			}
 			break;
 		}
@@ -1078,8 +1079,6 @@ INT_PTR CMsgDialog::DlgProc(UINT msg, WPARAM wParam, LPARAM lParam)
 		if (LOWORD(wParam) != WA_ACTIVE)
 			break;
 
-		__fallthrough;
-	case WM_MOUSEACTIVATE:
 		if (isChat()) {
 			SetFocus(m_message.GetHwnd());
 
@@ -1180,34 +1179,30 @@ INT_PTR CMsgDialog::DlgProc(UINT msg, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_MEASUREITEM:
-		if (!MeasureMenuItem(wParam, lParam)) {
+		{
 			MEASUREITEMSTRUCT *mis = (MEASUREITEMSTRUCT *)lParam;
-			if (mis->CtlType == ODT_MENU)
-				return Menu_MeasureItem(lParam);
-
-			int ih = Chat_GetTextPixelSize(L"AQGgl'", g_Settings.UserListFont, false);
-			int ih2 = Chat_GetTextPixelSize(L"AQGg'", g_Settings.UserListHeadingsFont, false);
-			int font = ih > ih2 ? ih : ih2;
-			int height = db_get_b(0, CHAT_MODULE, "NicklistRowDist", 12);
-			// make sure we have space for icon!
-			if (db_get_b(0, CHAT_MODULE, "ShowContactStatus", 0))
-				font = font > 16 ? font : 16;
-			mis->itemHeight = height > font ? height : font;
+			if (mis->CtlID == IDC_SRMM_NICKLIST) {
+				int ih = Chat_GetTextPixelSize(L"AQGgl'", g_Settings.UserListFont, false);
+				int ih2 = Chat_GetTextPixelSize(L"AQGg'", g_Settings.UserListHeadingsFont, false);
+				int font = ih > ih2 ? ih : ih2;
+				int height = db_get_b(0, CHAT_MODULE, "NicklistRowDist", 12);
+				// make sure we have space for icon!
+				if (Chat::bShowContactStatus)
+					font = font > 16 ? font : 16;
+				mis->itemHeight = height > font ? height : font;
+			}
 		}
-		return TRUE;
+		return Menu_MeasureItem(lParam);
 
 	case WM_DRAWITEM:
-		if (!DrawMenuItem(wParam, lParam)) {
+		{
 			LPDRAWITEMSTRUCT dis = (LPDRAWITEMSTRUCT)lParam;
-			if (dis->CtlType == ODT_MENU)
-				return Menu_DrawItem(lParam);
-
-			if (dis->hwndItem == GetDlgItem(m_hwnd, IDC_AVATAR)) {
-				int avatarWidth = 0, avatarHeight = 0;
+			if (dis->CtlID == IDC_AVATAR) {
 				int itemWidth = dis->rcItem.right - dis->rcItem.left + 1, itemHeight = dis->rcItem.bottom - dis->rcItem.top + 1;
 				HDC hdcMem = CreateCompatibleDC(dis->hDC);
 				HBITMAP hbmMem = CreateCompatibleBitmap(dis->hDC, itemWidth, itemHeight);
 				hbmMem = (HBITMAP)SelectObject(hdcMem, hbmMem);
+
 				RECT rect;
 				rect.top = 0;
 				rect.left = 0;
@@ -1219,8 +1214,8 @@ INT_PTR CMsgDialog::DlgProc(UINT msg, WPARAM wParam, LPARAM lParam)
 					BITMAP bminfo;
 					GetObject(m_hbmpAvatarPic, sizeof(bminfo), &bminfo);
 					if (bminfo.bmWidth != 0 && bminfo.bmHeight != 0) {
-						avatarHeight = itemHeight;
-						avatarWidth = bminfo.bmWidth * avatarHeight / bminfo.bmHeight;
+						int avatarHeight = itemHeight;
+						int avatarWidth = bminfo.bmWidth * avatarHeight / bminfo.bmHeight;
 						if (avatarWidth > itemWidth) {
 							avatarWidth = itemWidth;
 							avatarHeight = bminfo.bmHeight * avatarWidth / bminfo.bmWidth;
@@ -1243,50 +1238,8 @@ INT_PTR CMsgDialog::DlgProc(UINT msg, WPARAM wParam, LPARAM lParam)
 				DeleteDC(hdcMem);
 				return TRUE;
 			}
-
-			if (dis->CtlID == IDC_SRMM_NICKLIST) {
-				int index = dis->itemID;
-				USERINFO *ui = g_chatApi.SM_GetUserFromIndex(m_si->ptszID, m_si->pszModule, index);
-				if (ui) {
-					int x_offset = 2;
-
-					int height = dis->rcItem.bottom - dis->rcItem.top;
-					if (height & 1)
-						height++;
-
-					int offset = (height == 10) ? 0 : height / 2 - 5;
-					HFONT hFont = (ui->iStatusEx == 0) ? g_Settings.UserListFont : g_Settings.UserListHeadingsFont;
-					HFONT hOldFont = (HFONT)SelectObject(dis->hDC, hFont);
-					SetBkMode(dis->hDC, TRANSPARENT);
-
-					if (dis->itemAction == ODA_FOCUS && dis->itemState & ODS_SELECTED)
-						FillRect(dis->hDC, &dis->rcItem, g_chatApi.hListSelectedBkgBrush);
-					else //if (dis->itemState & ODS_INACTIVE)
-						FillRect(dis->hDC, &dis->rcItem, g_chatApi.hListBkgBrush);
-
-					if (g_Settings.bShowContactStatus && g_Settings.bContactStatusFirst && ui->ContactStatus) {
-						HICON hIcon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
-						DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 3, hIcon, 16, 16, 0, nullptr, DI_NORMAL);
-						IcoLib_ReleaseIcon(hIcon);
-						x_offset += 18;
-					}
-					DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset, g_chatApi.SM_GetStatusIcon(m_si, ui), 10, 10, 0, nullptr, DI_NORMAL);
-					x_offset += 12;
-					if (g_Settings.bShowContactStatus && !g_Settings.bContactStatusFirst && ui->ContactStatus) {
-						HICON hIcon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
-						DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 3, hIcon, 16, 16, 0, nullptr, DI_NORMAL);
-						IcoLib_ReleaseIcon(hIcon);
-						x_offset += 18;
-					}
-
-					SetTextColor(dis->hDC, ui->iStatusEx == 0 ? g_Settings.crUserListColor : g_Settings.crUserListHeadingsColor);
-					TextOut(dis->hDC, dis->rcItem.left + x_offset, dis->rcItem.top, ui->pszNick, (int)mir_wstrlen(ui->pszNick));
-					SelectObject(dis->hDC, hOldFont);
-				}
-				return TRUE;
-			}
 		}
-		return Menu_DrawItem(lParam);
+		break;
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
@@ -1332,27 +1285,6 @@ INT_PTR CMsgDialog::DlgProc(UINT msg, WPARAM wParam, LPARAM lParam)
 			if (pNmhdr->code == EN_MSGFILTER && ((MSGFILTER *)lParam)->msg == WM_RBUTTONUP) {
 				SetWindowLongPtr(m_hwnd, DWLP_MSGRESULT, TRUE);
 				return TRUE;
-			}
-			break;
-
-		case IDC_SRMM_NICKLIST:
-			if (pNmhdr->code == TTN_NEEDTEXT) {
-				LPNMTTDISPINFO lpttd = (LPNMTTDISPINFO)lParam;
-				SESSION_INFO *parentdat = (SESSION_INFO *)GetWindowLongPtr(m_hwnd, GWLP_USERDATA);
-
-				POINT p;
-				GetCursorPos(&p);
-				ScreenToClient(m_nickList.GetHwnd(), &p);
-				int item = LOWORD(m_nickList.SendMsg(LB_ITEMFROMPOINT, 0, MAKELPARAM(p.x, p.y)));
-				USERINFO *ui = g_chatApi.SM_GetUserFromIndex(parentdat->ptszID, parentdat->pszModule, item);
-				if (ui != nullptr) {
-					static wchar_t ptszBuf[1024];
-					mir_snwprintf(ptszBuf, L"%s: %s\r\n%s: %s\r\n%s: %s",
-						TranslateT("Nickname"), ui->pszNick,
-						TranslateT("Unique ID"), ui->pszUID,
-						TranslateT("Status"), g_chatApi.TM_WordToString(parentdat->pStatuses, ui->Status));
-					lpttd->lpszText = ptszBuf;
-				}
 			}
 			break;
 		}

@@ -139,6 +139,10 @@ public:
 		return ((CLogWindow *)m_pLog);
 	}
 
+	__forceinline CTabbedWindow* getOwner() const {
+		return m_pOwner;
+	}
+
 	int m_avatarWidth = 0, m_avatarHeight = 0;
 
 	bool m_bIsAutoRTL = false;
@@ -152,12 +156,14 @@ public:
 	}
 
 	void CloseTab() override;
+	void DrawNickList(USERINFO *ui, DRAWITEMSTRUCT *dis) override;
 	void EventAdded(MEVENT, const DBEVENTINFO &dbei) override;
 	bool GetFirstEvent() override;
 	bool IsActive() const override;
 	void LoadSettings() override;
 	void SetStatusText(const wchar_t *, HICON) override;
 	void ShowFilterMenu() override;
+	void UpdateFilterButton() override;
 	void UpdateNickList() override;
 	void UpdateOptions() override;
 	void UpdateStatusBar() override;
@@ -198,9 +204,9 @@ bool LoadMsgDlgFont(int i, LOGFONT* lf, COLORREF* colour);
 #define LOADHISTORY_COUNT     1
 #define LOADHISTORY_TIME      2
 
-#define SRMMMOD    "SRMM"
-#define SRMSGMOD   "SRMsg"
-#define DBSAVEDMSG "SavedMsg"
+#define SRMM_MODULE           "SRMM"
+#define SRMSGMOD              "SRMsg"
+#define DBSAVEDMSG            "SavedMsg"
 
 #define SRMSGSET_TYPING  "SupportTyping"
 

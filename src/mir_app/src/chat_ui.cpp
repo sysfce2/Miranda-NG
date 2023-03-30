@@ -51,7 +51,7 @@ static UINT _eventorder[] =
 class CChatEventOptionDlg : public CDlgBase
 {
 	CCtrlCheck chkTray, chkPopup, chkRightClick;
-	CCtrlMButton btn1, btn2, btn3, btn4;
+	CCtrlMButton btn1, btn2, btn3, btn4, btn5;
 
 	void InvertColumn(int ctrlId)
 	{
@@ -67,39 +67,35 @@ public:
 		chkTray(this, IDC_TRAYONLYFORINACTIVE),
 		chkPopup(this, IDC_POPUPONLYFORINACTIVE),
 		chkRightClick(this, IDC_RIGHTCLICK),
-		btn1(this, IDC_ICON1, SKINICON_OTHER_POPUP, LPGEN("Popup")),
-		btn2(this, IDC_ICON2, SKINICON_OTHER_MIRANDA, LPGEN("Tray")),
-		btn3(this, IDC_ICON3, SKINICON_OTHER_SOUND, LPGEN("Sound")),
-		btn4(this, IDC_ICON4, SKINICON_EVENT_FILE, LPGEN("Log to file"))
+		btn1(this, IDC_ICON1, SKINICON_OTHER_WINDOW, LPGEN("Window")),
+		btn2(this, IDC_ICON2, SKINICON_OTHER_POPUP, LPGEN("Popup")),
+		btn3(this, IDC_ICON3, SKINICON_OTHER_MIRANDA, LPGEN("Tray")),
+		btn4(this, IDC_ICON4, SKINICON_OTHER_SOUND, LPGEN("Sound")),
+		btn5(this, IDC_ICON5, SKINICON_EVENT_FILE, LPGEN("Log to file"))
 	{
 		CreateLink(chkTray, g_bChatTrayInactive);
 		CreateLink(chkPopup, g_bChatPopupInactive);
 		CreateLink(chkRightClick, g_chatApi.bRightClickFilter);
 
-		btn1.OnClick = Callback(this, &CChatEventOptionDlg::onClick_Popup);
-		btn2.OnClick = Callback(this, &CChatEventOptionDlg::onClick_Tray);
-		btn3.OnClick = Callback(this, &CChatEventOptionDlg::onClick_Sound);
-		btn4.OnClick = Callback(this, &CChatEventOptionDlg::onClick_Log);
+		btn1.OnClick = Callback(this, &CChatEventOptionDlg::onClick_Window);
+		btn2.OnClick = Callback(this, &CChatEventOptionDlg::onClick_Popup);
+		btn3.OnClick = Callback(this, &CChatEventOptionDlg::onClick_Tray);
+		btn4.OnClick = Callback(this, &CChatEventOptionDlg::onClick_Sound);
+		btn5.OnClick = Callback(this, &CChatEventOptionDlg::onClick_Log);
 	}
 
 	bool OnInitDialog() override
 	{
 		btn1.MakeFlat(); btn2.MakeFlat(); btn3.MakeFlat(); btn4.MakeFlat();
 
-		uint32_t dwFilterFlags = db_get_dw(0, CHAT_MODULE, "FilterFlags", GC_EVENT_ALL);
-		uint32_t dwTrayFlags = db_get_dw(0, CHAT_MODULE, "TrayIconFlags", GC_EVENT_HIGHLIGHT);
-		uint32_t dwPopupFlags = db_get_dw(0, CHAT_MODULE, "PopupFlags", GC_EVENT_HIGHLIGHT);
-		uint32_t dwSoundFlags = db_get_dw(0, CHAT_MODULE, "SoundFlags", GC_EVENT_HIGHLIGHT);
-		uint32_t dwLogFlags = db_get_dw(0, CHAT_MODULE, "DiskLogFlags", GC_EVENT_ALL);
-
 		for (int i = 0; i < _countof(_eventorder); i++) {
 			if (_eventorder[i] != GC_EVENT_HIGHLIGHT) {
-				CheckDlgButton(m_hwnd, IDC_1 + i, dwFilterFlags & _eventorder[i] ? BST_CHECKED : BST_UNCHECKED);
-				CheckDlgButton(m_hwnd, IDC_L1 + i, dwLogFlags & _eventorder[i] ? BST_CHECKED : BST_UNCHECKED);
+				CheckDlgButton(m_hwnd, IDC_1 + i, Chat::iFilterFlags & _eventorder[i] ? BST_CHECKED : BST_UNCHECKED);
+				CheckDlgButton(m_hwnd, IDC_L1 + i, Chat::iDiskLogFlags & _eventorder[i] ? BST_CHECKED : BST_UNCHECKED);
 			}
-			CheckDlgButton(m_hwnd, IDC_P1 + i, dwPopupFlags & _eventorder[i] ? BST_CHECKED : BST_UNCHECKED);
-			CheckDlgButton(m_hwnd, IDC_T1 + i, dwTrayFlags & _eventorder[i] ? BST_CHECKED : BST_UNCHECKED);
-			CheckDlgButton(m_hwnd, IDC_S1 + i, dwSoundFlags & _eventorder[i] ? BST_CHECKED : BST_UNCHECKED);
+			CheckDlgButton(m_hwnd, IDC_P1 + i, Chat::iPopupFlags & _eventorder[i] ? BST_CHECKED : BST_UNCHECKED);
+			CheckDlgButton(m_hwnd, IDC_S1 + i, Chat::iSoundFlags & _eventorder[i] ? BST_CHECKED : BST_UNCHECKED);
+			CheckDlgButton(m_hwnd, IDC_T1 + i, Chat::iTrayIconFlags & _eventorder[i] ? BST_CHECKED : BST_UNCHECKED);
 		}
 		return true;
 	}
@@ -117,23 +113,23 @@ public:
 			dwPopupFlags |= (IsDlgButtonChecked(m_hwnd, IDC_P1 + i) ? _eventorder[i] : 0);
 			dwTrayFlags |= (IsDlgButtonChecked(m_hwnd, IDC_T1 + i) ? _eventorder[i] : 0);
 		}
-		db_set_dw(0, CHAT_MODULE, "FilterFlags", dwFilterFlags);
-		db_set_dw(0, CHAT_MODULE, "PopupFlags", dwPopupFlags);
-		db_set_dw(0, CHAT_MODULE, "SoundFlags", dwSoundFlags);
-		db_set_dw(0, CHAT_MODULE, "TrayIconFlags", dwTrayFlags);
-		db_set_dw(0, CHAT_MODULE, "DiskLogFlags", dwLogFlags);
+
+		Chat::iPopupFlags = dwPopupFlags;
+		Chat::iSoundFlags = dwSoundFlags;
+		Chat::iFilterFlags = dwFilterFlags;
+		Chat::iTrayIconFlags = dwTrayFlags;
+		Chat::iDiskLogFlags = dwLogFlags;
 
 		LoadGlobalSettings();
 		return true;
 	}
 
+	void onClick_Window(CCtrlButton *) { InvertColumn(IDC_1); }
 	void onClick_Popup(CCtrlButton *) { InvertColumn(IDC_P1); }
 	void onClick_Sound(CCtrlButton *) { InvertColumn(IDC_S1); }
 	void onClick_Tray(CCtrlButton *) { InvertColumn(IDC_T1); }
 	void onClick_Log(CCtrlButton *) { InvertColumn(IDC_L1); }
 };
-
-/////////////////////////////////////////////////////////////////////////////////////////
 
 /////////////////////////////////////////////////////////////////////////////////////////
 // Popup options

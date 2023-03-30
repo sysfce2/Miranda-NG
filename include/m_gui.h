@@ -1306,6 +1306,7 @@ public:
 			NMTVGETINFOTIP *nmtvit;
 			NMTVCUSTOMDRAW *nmcd;
 			HTREEITEM hItem; // for OnItemChanged
+			TVHITTESTINFO *ntvhi; // for OnEndDrag
 		};
 	};
 
@@ -1314,6 +1315,7 @@ public:
 	CCallback<TEventInfo> OnBeginRDrag;
 	CCallback<TEventInfo> OnCustomDraw;
 	CCallback<TEventInfo> OnDeleteItem;
+	CCallback<TEventInfo> OnEndDrag;
 	CCallback<TEventInfo> OnEndLabelEdit;
 	CCallback<TEventInfo> OnGetDispInfo;
 	CCallback<TEventInfo> OnGetInfoTip;
@@ -1413,6 +1415,7 @@ class MIR_CORE_EXPORT CCtrlPages : public CCtrlBase
 	HIMAGELIST m_hIml;
 	CDlgBase *m_pActivePage;
 	int m_numRows = 1;
+	bool m_bOwnPages = false;
 
 	struct TPageInfo;
 	void InsertPage(TPageInfo *pPage);
@@ -1437,6 +1440,10 @@ public:
 
 	__forceinline CDlgBase* GetActivePage() const
 	{	return m_pActivePage;
+	}
+
+	__forceinline void SetPageOwner()
+	{	m_bOwnPages = true;
 	}
 
 protected:

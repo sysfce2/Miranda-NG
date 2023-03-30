@@ -334,7 +334,8 @@ public:
 		m_nameOrder(this, IDC_NAMEORDER)
 	{
 		m_nameOrder.SetFlags(MTREE_DND);
-		m_nameOrder.OnBeginDrag = Callback(this, &CContactOptsDlg::OnBeginDrag);
+		m_nameOrder.OnBeginDrag = BCallback(this, &CContactOptsDlg::OnBeginDrag);
+		m_nameOrder.OnEndDrag = BCallback(this, &CContactOptsDlg::OnEndDrag);
 	}
 
 	bool OnInitDialog() override
@@ -367,11 +368,29 @@ public:
 		return true;
 	}
 
-	void OnBeginDrag(CCtrlTreeView::TEventInfo *evt)
+	bool OnBeginDrag(CCtrlTreeView::TEventInfo *evt)
 	{
 		LPNMTREEVIEW pNotify = evt->nmtv;
-		if (pNotify->itemNew.lParam == 0 || pNotify->itemNew.lParam == _countof(nameOrderDescr) - 1)
-			pNotify->hdr.code = 0; // deny dragging
+		return (pNotify->itemNew.lParam != 0 && pNotify->itemNew.lParam != _countof(nameOrderDescr)-1);
+	}
+
+	bool OnEndDrag(CCtrlTreeView::TEventInfo *evt)
+	{
+		auto &hti = *evt->ntvhi;
+
+		// do not allow to move selection over the first item
+		if (hti.flags & TVHT_ABOVE)
+			return false;
+
+		// do not allow to move selection below the last item either
+		TVITEMEX tvi;
+		tvi.mask = TVIF_HANDLE | TVIF_PARAM;
+		tvi.hItem = hti.hItem;
+		m_nameOrder.GetItem(&tvi);
+		if (tvi.lParam == _countof(nameOrderDescr) - 1)
+			return false;
+
+		return true;
 	}
 };
 

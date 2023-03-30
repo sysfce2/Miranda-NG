@@ -36,6 +36,44 @@ void CMsgDialog::CloseTab()
 	Close();
 }
 
+void CMsgDialog::DrawNickList(USERINFO *ui, DRAWITEMSTRUCT *dis)
+{
+	int x_offset = 2;
+
+	int height = dis->rcItem.bottom - dis->rcItem.top;
+	if (height & 1)
+		height++;
+
+	int offset = (height == 10) ? 0 : height / 2 - 5;
+	HFONT hFont = (ui->iStatusEx == 0) ? g_Settings.UserListFont : g_Settings.UserListHeadingsFont;
+	HFONT hOldFont = (HFONT)SelectObject(dis->hDC, hFont);
+	SetBkMode(dis->hDC, TRANSPARENT);
+
+	if (dis->itemAction == ODA_FOCUS && dis->itemState & ODS_SELECTED)
+		FillRect(dis->hDC, &dis->rcItem, g_chatApi.hListSelectedBkgBrush);
+	else //if (dis->itemState & ODS_INACTIVE)
+		FillRect(dis->hDC, &dis->rcItem, g_chatApi.hListBkgBrush);
+
+	if (g_Settings.bShowContactStatus && g_Settings.bContactStatusFirst && ui->ContactStatus) {
+		HICON hIcon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
+		DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 3, hIcon, 16, 16, 0, nullptr, DI_NORMAL);
+		IcoLib_ReleaseIcon(hIcon);
+		x_offset += 18;
+	}
+	DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset, g_chatApi.SM_GetStatusIcon(m_si, ui), 10, 10, 0, nullptr, DI_NORMAL);
+	x_offset += 12;
+	if (g_Settings.bShowContactStatus && !g_Settings.bContactStatusFirst && ui->ContactStatus) {
+		HICON hIcon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
+		DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 3, hIcon, 16, 16, 0, nullptr, DI_NORMAL);
+		IcoLib_ReleaseIcon(hIcon);
+		x_offset += 18;
+	}
+
+	SetTextColor(dis->hDC, ui->iStatusEx == 0 ? g_Settings.crUserListColor : g_Settings.crUserListHeadingsColor);
+	TextOut(dis->hDC, dis->rcItem.left + x_offset, dis->rcItem.top, ui->pszNick, (int)mir_wstrlen(ui->pszNick));
+	SelectObject(dis->hDC, hOldFont);
+}
+
 void CMsgDialog::EventAdded(MEVENT hDbEvent, const DBEVENTINFO &dbei)
 {
 	if (m_hDbEventFirst == 0)
@@ -530,6 +568,14 @@ void CMsgDialog::UpdateIcon()
 	SendDlgItemMessage(m_hwnd, IDC_USERMENU, BM_SETIMAGE, IMAGE_ICON, (LPARAM)m_hStatusIcon);
 }
 
+void CMsgDialog::UpdateFilterButton()
+{
+	CSuper::UpdateFilterButton();
+
+	m_btnFilter.SendMsg(BM_SETIMAGE, IMAGE_ICON, (LPARAM)g_plugin.getIcon(m_bFilterEnabled ? IDI_FILTER : IDI_FILTER2));
+	m_btnNickList.SendMsg(BM_SETIMAGE, IMAGE_ICON, (LPARAM)g_plugin.getIcon(m_bNicklistEnabled ? IDI_NICKLIST2 : IDI_NICKLIST));
+}
+
 void CMsgDialog::UpdateNickList()
 {
 	m_nickList.SetDraw(false);
@@ -551,11 +597,9 @@ void CMsgDialog::UpdateNickList()
 
 void CMsgDialog::UpdateOptions()
 {
-	m_btnNickList.SendMsg(BM_SETIMAGE, IMAGE_ICON, (LPARAM)g_plugin.getIcon(m_bNicklistEnabled ? IDI_NICKLIST2 : IDI_NICKLIST));
-	m_btnFilter.SendMsg(BM_SETIMAGE, IMAGE_ICON, (LPARAM)g_plugin.getIcon(m_bFilterEnabled ? IDI_FILTER2 : IDI_FILTER));
-
 	GetAvatar();
 
+	UpdateFilterButton();
 	UpdateStatusBar();
 	UpdateTitle();
 	FixTabIcons();
@@ -581,8 +625,9 @@ void CMsgDialog::UpdateOptions()
 		int ih2 = Chat_GetTextPixelSize(L"AQG_glo'", g_Settings.UserListHeadingsFont, false);
 		int height = db_get_b(0, CHAT_MODULE, "NicklistRowDist", 12);
 		int font = ih > ih2 ? ih : ih2;
+		
 		// make sure we have space for icon!
-		if (db_get_b(0, CHAT_MODULE, "ShowContactStatus", 0))
+		if (Chat::bShowContactStatus)
 			font = font > 16 ? font : 16;
 
 		m_nickList.SendMsg(LB_SETITEMHEIGHT, 0, height > font ? height : font);

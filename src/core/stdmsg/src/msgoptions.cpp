@@ -93,7 +93,7 @@ void RegisterSRMMFonts(void)
 	FontIDW fontid = {};
 	fontid.flags = FIDF_ALLOWREREGISTER | FIDF_DEFAULTVALID;
 	for (int i = 0; i < _countof(fontOptionsList); i++) {
-		strncpy_s(fontid.dbSettingsGroup, SRMMMOD, _TRUNCATE);
+		strncpy_s(fontid.dbSettingsGroup, SRMM_MODULE, _TRUNCATE);
 		wcsncpy_s(fontid.group, LPGENW("Message sessions") L"/" LPGENW("Message log"), _TRUNCATE);
 		wcsncpy_s(fontid.name, fontOptionsList[i].szDescr, _TRUNCATE);
 
@@ -116,7 +116,7 @@ void RegisterSRMMFonts(void)
 	}
 
 	ColourIDW colourid = {};
-	strncpy_s(colourid.dbSettingsGroup, SRMMMOD, _TRUNCATE);
+	strncpy_s(colourid.dbSettingsGroup, SRMM_MODULE, _TRUNCATE);
 	strncpy_s(colourid.setting, SRMSGSET_BKGCOLOUR, _TRUNCATE);
 	colourid.defcolour = SRMSGDEFSET_BKGCOLOUR;
 	wcsncpy_s(colourid.name, LPGENW("Background"), _TRUNCATE);
@@ -158,12 +158,12 @@ class COptionMainDlg : public CDlgBase
 		TVINSERTSTRUCT tvis;
 		tvis.hParent = nullptr;
 		tvis.hInsertAfter = TVI_LAST;
-		tvis.item.mask = TVIF_PARAM | TVIF_TEXT | TVIF_IMAGE;
+		tvis.item.mask = TVIF_PARAM | TVIF_TEXT | TVIF_STATE;
 		for (auto &it : statusValues) {
 			tvis.item.lParam = it.style;
 			tvis.item.pszText = TranslateW(it.szDescr);
 			tvis.item.stateMask = TVIS_STATEIMAGEMASK;
-			tvis.item.iImage = (style & it.style) != 0;
+			tvis.item.state = INDEXTOSTATEIMAGEMASK((style & it.style) != 0 ? 2 : 1);
 			tree.InsertItem(&tvis);
 		}
 	}
@@ -173,11 +173,11 @@ class COptionMainDlg : public CDlgBase
 		uint32_t flags = 0;
 
 		TVITEMEX tvi;
-		tvi.mask = TVIF_HANDLE | TVIF_PARAM | TVIF_IMAGE;
+		tvi.mask = TVIF_HANDLE | TVIF_PARAM | TVIF_STATE;
 		tvi.hItem = tree.GetRoot();
 		while (tvi.hItem) {
 			tree.GetItem(&tvi);
-			if (tvi.iImage)
+			if ((tvi.state >> 12) == 2)
 				flags |= tvi.lParam;
 			tvi.hItem = tree.GetNextSibling(tvi.hItem);
 		}

@@ -134,6 +134,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define GC_TYPNOTIF        0x0040 // enable typing notifications.
 #define GC_CHANMGR         0x0080 // enable the 'channel settings' button
 #define GC_DATABASE        0x0100 // all events are backed in the database
+#define GC_PERSISTENT      0x0200 // chat structure is stored offline not to retrieve it each time
 
 // Error messages
 #define GC_ERROR                1 // An internal error occurred.
@@ -345,9 +346,10 @@ MIR_APP_DLL(struct SESSION_INFO*) Chat_NewSession(
 // Error messages
 #define GC_EVENT_ERROR			2   // An internal error occurred.
 
-#define GC_EVENT_ALL (GC_EVENT_ACTION | GC_EVENT_MESSAGE | GC_EVENT_NICK | GC_EVENT_JOIN | \
-	GC_EVENT_PART | GC_EVENT_TOPIC | GC_EVENT_ADDSTATUS | GC_EVENT_INFORMATION | GC_EVENT_QUIT | \
-	GC_EVENT_KICK | GC_EVENT_NOTICE)
+// By default users see only those events
+#define GC_EVENT_FILTERED (GC_EVENT_ACTION | GC_EVENT_INFORMATION | GC_EVENT_TOPIC | GC_EVENT_MESSAGE | GC_EVENT_NOTICE)
+
+#define GC_EVENT_ALL (GC_EVENT_FILTERED | GC_EVENT_NICK | GC_EVENT_JOIN | GC_EVENT_PART | GC_EVENT_ADDSTATUS | GC_EVENT_QUIT | GC_EVENT_KICK)
 
 // The GCEVENT structure
 
@@ -558,9 +560,19 @@ typedef struct {
 MIR_APP_DLL(void) Chat_AddMenuItems(HMENU hMenu, int nItems, const gc_item *Item, HPLUGIN pPlugin);
 
 //////////////////////////////////////////////////////////////////////////
+// Mute chat event
+// called when a user manually changes mute mode for a group chat
+// wParam = (MCONTACT)hContact 
+// lParam = new mute mode (one of CHATMUTE_* constants)
+
+#define ME_GC_MUTE "GChat/Mute"
+
+//////////////////////////////////////////////////////////////////////////
 // Get Chat ToolTip Text for buddy
 // wParam = (WPARAM)(wchar_t*) roomID parentdat->ptszID
 // lParam = (WPARAM)(wchar_t*) userID ui1->pszUID
 // result (int)(wchar_t*)mir_tstrdup("tooltip text")
 // returns pointer to text of tooltip and starts owns it
+
 #define MS_GC_PROTO_GETTOOLTIPTEXT "/GetChatToolTipText"
+

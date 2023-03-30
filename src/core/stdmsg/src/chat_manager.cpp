@@ -94,33 +94,16 @@ static void OnFlashWindow(SESSION_INFO *si, int bInactive)
 		si->pDlg->StartFlash();
 }
 
-static BOOL DoTrayIcon(SESSION_INFO *si, GCEVENT *gce)
-{
-	if (gce->iType & g_Settings.dwTrayIconFlags)
-		return oldDoTrayIcon(si, gce);
-	return TRUE;
-}
-
-static BOOL DoPopup(SESSION_INFO *si, GCEVENT *gce)
-{
-	if (gce->iType & g_Settings.dwPopupFlags)
-		return oldDoPopup(si, gce);
-	return TRUE;
-}
-
 static void OnLoadSettings()
 {
-	g_Settings.iX = db_get_dw(0, CHAT_MODULE, "roomx", -1);
-	g_Settings.iY = db_get_dw(0, CHAT_MODULE, "roomy", -1);
-
 	g_Settings.bTabsEnable = db_get_b(0, CHAT_MODULE, "Tabs", 1) != 0;
 	g_Settings.bTabsAtBottom = db_get_b(0, CHAT_MODULE, "TabBottom", 0) != 0;
 	g_Settings.bTabCloseOnDblClick = db_get_b(0, CHAT_MODULE, "TabCloseOnDblClick", 0) != 0;
-	g_Settings.bAddColonToAutoComplete = db_get_b(0, CHAT_MODULE, "AddColonToAutoComplete", 1) != 0;
 
 	g_Settings.iSplitterX = db_get_w(0, CHAT_MODULE, "SplitterX", 105);
 	if (g_Settings.iSplitterX <= 50)
 		g_Settings.iSplitterX = 105;
+
 	g_Settings.iSplitterY = db_get_w(0, CHAT_MODULE, "SplitterY", 90);
 	if (g_Settings.iSplitterY <= 65)
 		g_Settings.iSplitterY = 90;
@@ -166,10 +149,8 @@ static void ShowRoom(SESSION_INFO *si)
 	// Do we need to create a window?
 	if (si->pDlg == nullptr) {
 		CTabbedWindow *pContainer = GetContainer();
-		if (g_Settings.bTabsEnable) {
+		if (g_Settings.bTabsEnable)
 			pContainer->AddPage(si);
-			PostMessage(pContainer->GetHwnd(), WM_SIZE, 0, 0);
-		}
 		else {
 			CMsgDialog *pDlg = pContainer->m_pEmbed = new CMsgDialog(pContainer, si);
 			pContainer->Create();
@@ -177,8 +158,8 @@ static void ShowRoom(SESSION_INFO *si)
 			pDlg->Create();
 			pContainer->Show();
 			pContainer->FixTabIcons(pDlg);
-			PostMessage(pContainer->GetHwnd(), WM_SIZE, 0, 0);
 		}
+		PostMessage(pContainer->GetHwnd(), WM_SIZE, 0, 0);
 
 		if (si->iType != GCW_SERVER)
 			si->pDlg->UpdateNickList();
@@ -221,8 +202,6 @@ void Load_ChatModule()
 
 	Srmm_CreateHotkey(LPGEN("Messaging"), LPGEN("Send message"));
 
-	oldDoPopup = g_chatApi.DoPopup; g_chatApi.DoPopup = DoPopup;
-	oldDoTrayIcon = g_chatApi.DoTrayIcon; g_chatApi.DoTrayIcon = DoTrayIcon;
 	g_chatApi.ReloadSettings();
 
 	g_hMenu = LoadMenu(g_plugin.getInst(), MAKEINTRESOURCE(IDR_MENU));
@@ -234,10 +213,6 @@ void Unload_ChatModule()
 {
 	db_set_w(0, CHAT_MODULE, "SplitterX", (uint16_t)g_Settings.iSplitterX);
 	db_set_w(0, CHAT_MODULE, "SplitterY", (uint16_t)g_Settings.iSplitterY);
-	db_set_dw(0, CHAT_MODULE, "roomx", g_Settings.iX);
-	db_set_dw(0, CHAT_MODULE, "roomy", g_Settings.iY);
-	db_set_dw(0, CHAT_MODULE, "roomwidth", g_Settings.iWidth);
-	db_set_dw(0, CHAT_MODULE, "roomheight", g_Settings.iHeight);
 
 	DestroyMenu(g_hMenu);
 }

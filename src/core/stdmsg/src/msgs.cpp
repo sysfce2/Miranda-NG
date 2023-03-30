@@ -77,35 +77,48 @@ static int MessageEventAdded(WPARAM hContact, LPARAM hDbEvent)
 	if (dbei.flags & (DBEF_SENT | DBEF_READ) || !(dbei.eventType == EVENTTYPE_MESSAGE || DbEventIsForMsgWindow(&dbei)))
 		return 0;
 
+	bool bPopup = false;
+	char *szProto = Proto_GetBaseAccountName(hContact);
+	if (szProto && (g_plugin.popupFlags & SRMMStatusToPf2(Proto_GetStatus(szProto))))
+		bPopup = true;
+
 	/* does a window for the contact exist? */
-	HWND hwnd = Srmm_FindWindow(hContact);
-	if (hwnd) {
-		if (!g_plugin.bDoNotStealFocus) {
-			ShowWindow(hwnd, SW_RESTORE);
-			SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-			SetForegroundWindow(hwnd);
-			Skin_PlaySound("RecvMsgActive");
+	CTabbedWindow *pContainer = nullptr;
+	auto *pDlg = Srmm_FindDialog(hContact);
+	if (!pDlg) {
+		if (bPopup) {
+			pDlg = GetContainer()->AddPage(hContact, nullptr, true);
+			pContainer = pDlg->getOwner();
 		}
-		else {
-			if (GetForegroundWindow() == GetParent(hwnd))
-				Skin_PlaySound("RecvMsgActive");
-			else
-				Skin_PlaySound("RecvMsgInactive");
-		}
-		return 0;
+		
+		Skin_PlaySound("AlertMsg");
+		Srmm_AddEvent(hContact, hDbEvent);
 	}
-	/* new message */
-	Skin_PlaySound("AlertMsg");
+	else {
+		pContainer = pDlg->getOwner();
+		if (bPopup)
+			ShowWindow(pContainer->GetHwnd(), SW_RESTORE);
+
+		if (pContainer->CurrPage() != pDlg)
+			Srmm_AddEvent(hContact, hDbEvent);
+	}
+
+	if (!pContainer)
+		return 0;
+
+	if (bPopup && g_Settings.bTabsEnable && GetForegroundWindow() != pContainer->GetHwnd())
+		g_pTabDialog->m_tab.ActivatePage(g_pTabDialog->m_tab.GetDlgIndex(pDlg));
 
 	if (!g_plugin.bDoNotStealFocus) {
-		char *szProto = Proto_GetBaseAccountName(hContact);
-		if (szProto && (g_plugin.popupFlags & SRMMStatusToPf2(Proto_GetStatus(szProto)))) {
-			GetContainer()->AddPage(hContact);
-			return 0;
-		}
+		SetForegroundWindow(pContainer->GetHwnd());
+		Skin_PlaySound("RecvMsgActive");
 	}
-
-	Srmm_AddEvent(hContact, hDbEvent);
+	else {
+		if (GetForegroundWindow() == GetParent(pContainer->GetHwnd()))
+			Skin_PlaySound("RecvMsgActive");
+		else
+			Skin_PlaySound("RecvMsgInactive");
+	}
 	return 0;
 }
 
@@ -119,6 +132,7 @@ INT_PTR SendMessageCmd(MCONTACT hContact, wchar_t *pwszInitialText)
 	hContact = db_mc_tryMeta(hContact);
 
 	HWND hwnd = Srmm_FindWindow(hContact);
+	HWND hwndContainer;
 	if (hwnd) {
 		if (pwszInitialText) {
 			SendDlgItemMessage(hwnd, IDC_SRMM_MESSAGE, EM_SETSEL, -1, SendDlgItemMessage(hwnd, IDC_SRMM_MESSAGE, WM_GETTEXTLENGTH, 0, 0));
@@ -126,9 +140,8 @@ INT_PTR SendMessageCmd(MCONTACT hContact, wchar_t *pwszInitialText)
 			mir_free(pwszInitialText);
 		}
 		
+		hwndContainer = GetParent(hwnd);
 		if (!g_Settings.bTabsEnable) {
-			HWND hwndContainer = GetParent(hwnd);
-			ShowWindow(hwndContainer, SW_RESTORE);
 			SetWindowPos(hwndContainer, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
 			SetForegroundWindow(hwndContainer);
 		}
@@ -137,8 +150,12 @@ INT_PTR SendMessageCmd(MCONTACT hContact, wchar_t *pwszInitialText)
 			g_pTabDialog->m_tab.ActivatePage(g_pTabDialog->m_tab.GetDlgIndex(pDlg));
 		}
 	}
-	else GetContainer()->AddPage(hContact, pwszInitialText, false);
+	else {
+		auto *pDlg = GetContainer()->AddPage(hContact, pwszInitialText, false);
+		hwndContainer = pDlg->getOwner()->GetHwnd();
+	}
 
+	ShowWindow(hwndContainer, SW_RESTORE);
 	return 0;
 }
 

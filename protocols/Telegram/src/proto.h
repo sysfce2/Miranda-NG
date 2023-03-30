@@ -3,6 +3,7 @@
 #define STATUS_SWITCH_TIMEOUT 600
 
 #define DBKEY_ID "id"
+#define DBKEY_COMPAT "Compatibility"
 
 #define DBKEY_AVATAR_HASH "AvatarHash"
 #define DBKEY_AVATAR_TYPE "AvatarType"
@@ -76,7 +77,7 @@ struct TG_FILE_REQUEST : public MZeroedObject
 	PROTOFILETRANSFERSTATUS pfts;
 };
 
-struct TG_USER
+struct TG_USER : public MZeroedObject
 {
 	TG_USER(int64_t _1, MCONTACT _2, bool _3 = false) :
 		id(_1),
@@ -88,11 +89,12 @@ struct TG_USER
 
 	int64_t   id, chatId;
 	MCONTACT  hContact;
-	bool      isGroupChat;
+	bool      isGroupChat, bLoadMembers;
 	CMStringA szAvatarHash;
 	CMStringW wszNick, wszFirstName, wszLastName;
 	time_t    m_timer1 = 0, m_timer2 = 0;
 	SESSION_INFO *m_si = nullptr;
+	TD::chatNotificationSettings notificationSettings;
 
 	CMStringW getDisplayName() const;
 };
@@ -159,13 +161,14 @@ class CTelegramProto : public PROTO<CTelegramProto>
 
 	std::unique_ptr<td::ClientManager> m_pClientManager;
 	TD::object_ptr<TD::AuthorizationState> pAuthState;
+	TD::object_ptr<TD::ConnectionState> pConnState;
 
 	mir_cs m_csMarkRead;
-	MCONTACT m_markContact = 0;
+	TD::int53 m_markChatId = 0;
 	TD::array<TD::int53> m_markIds;
 
 	mir_cs m_csDeleteMsg;
-	MCONTACT m_deleteMsgContact = 0;
+	TD::int53 m_deleteChatId = 0;
 	TD::array<TD::int53> m_deleteIds;
 
 	bool m_bAuthorized, m_bTerminated, m_bUnregister = false, m_bSmileyAdd = false;
@@ -174,7 +177,10 @@ class CTelegramProto : public PROTO<CTelegramProto>
 	CMStringA m_szFullPhone;
 
 	OBJLIST<TG_REQUEST_BASE> m_arRequests;
-	OBJLIST<TG_FILE_REQUEST> m_arFiles;
+
+	mir_cs m_csFiles;
+	LIST<TG_FILE_REQUEST> m_arFiles;
+	TG_FILE_REQUEST* PopFile(const char *pszUniqueId);
 
 	static INT_PTR CALLBACK EnterEmail(void *param);
 	static INT_PTR CALLBACK EnterEmailCode(void *param);
@@ -207,6 +213,7 @@ class CTelegramProto : public PROTO<CTelegramProto>
 	void ProcessChatLastMessage(TD::updateChatLastMessage *pObj);
 	void ProcessChatNotification(TD::updateChatNotificationSettings *pObj);
 	void ProcessChatPosition(TD::updateChatPosition *pObj);
+	void ProcessConnectionState(TD::updateConnectionState *pObj);
 	void ProcessDeleteMessage(TD::updateDeleteMessages *pObj);
 	void ProcessFile(TD::updateFile *pObj);
 	void ProcessGroups(TD::updateChatFilters *pObj);
@@ -232,7 +239,7 @@ class CTelegramProto : public PROTO<CTelegramProto>
 	OBJLIST<TG_BASIC_GROUP>  m_arBasicGroups;
 	OBJLIST<TG_SUPER_GROUP>  m_arSuperGroups;
 
-	void InitGroupChat(TG_USER *pUser, const TD::chat *pChat, bool bUpdateMembers);
+	void InitGroupChat(TG_USER *pUser, const TD::chat *pChat);
 	void StartGroupChat(td::ClientManager::Response &response, void *pUserData);
 	
 	void Chat_SendPrivateMessage(GCHOOK *gch);
@@ -255,6 +262,7 @@ class CTelegramProto : public PROTO<CTelegramProto>
 	TG_USER* AddUser(int64_t id, bool bIsChat);
 	TG_USER* AddFakeUser(int64_t id, bool bIsChat);
 	TG_USER* GetSender(const TD::MessageSender *pSender);
+	int64_t  GetId(MCONTACT);
 	void     SetId(MCONTACT, int64_t id);
 
 	// Popups
@@ -300,6 +308,7 @@ public:
 	int __cdecl OnOptionsInit(WPARAM, LPARAM);
 
 	int __cdecl GcMenuHook(WPARAM, LPARAM);
+	int __cdecl GcMuteHook(WPARAM, LPARAM);
 	int __cdecl GcEventHook(WPARAM, LPARAM);
 
 	// Services //////////////////////////////////////////////////////////////////////////

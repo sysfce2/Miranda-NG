@@ -631,12 +631,14 @@ public:
 
 	void AddLog() override;
 	void CloseTab() override;
+	void DrawNickList(USERINFO *ui, DRAWITEMSTRUCT *dis) override;
 	void EventAdded(MEVENT, const DBEVENTINFO &dbei) override;
 	bool GetFirstEvent() override;
 	bool IsActive() const override;
 	void LoadSettings() override;
 	void SetStatusText(const wchar_t *, HICON) override;
 	void ShowFilterMenu() override;
+	void UpdateFilterButton() override;
 	void UpdateNickList() override;
 	void UpdateOptions() override;
 	void UpdateStatusBar() override;
@@ -689,6 +691,7 @@ public:
 	void SaveSplitter(void);
 	void SelectContainer(void);
 	void SetDialogToType(void);
+	void SetFilter(uint32_t dwFlags);
 	void ShowPicture(bool showNewPic);
 	void SplitterMoved(int x, HWND hwnd);
 	void SwitchToContainer(const wchar_t *szNewName);

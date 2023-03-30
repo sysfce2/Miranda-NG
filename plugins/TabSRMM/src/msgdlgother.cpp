@@ -433,6 +433,92 @@ BOOL CMsgDialog::DoRtfToTags(CMStringW &pszText) const
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
+void CMsgDialog::DrawNickList(USERINFO *ui, DRAWITEMSTRUCT *dis)
+{
+	int x_offset = 0;
+	int index = dis->itemID;
+
+	int height = dis->rcItem.bottom - dis->rcItem.top;
+	if (height & 1)
+		height++;
+	int offset = (height == 10) ? 0 : height / 2;
+
+	HICON hIcon = g_chatApi.SM_GetStatusIcon(m_si, ui);
+	HFONT hFont = g_Settings.UserListFonts[ui->iStatusEx];
+	HFONT hOldFont = (HFONT)SelectObject(dis->hDC, hFont);
+	SetBkMode(dis->hDC, TRANSPARENT);
+
+	int nickIndex = 0;
+	for (int i = 0; i < STATUSICONCOUNT; i++) {
+		if (hIcon == g_chatApi.hStatusIcons[i]) {
+			nickIndex = i;
+			break;
+		}
+	}
+
+	if (dis->itemState & ODS_SELECTED) {
+		FillRect(dis->hDC, &dis->rcItem, g_Settings.SelectionBGBrush);
+		SetTextColor(dis->hDC, g_Settings.nickColors[6]);
+	}
+	else {
+		FillRect(dis->hDC, &dis->rcItem, g_chatApi.hListBkgBrush);
+		if (g_Settings.bColorizeNicks && nickIndex != 0)
+			SetTextColor(dis->hDC, g_Settings.nickColors[nickIndex - 1]);
+		else
+			SetTextColor(dis->hDC, g_Settings.UserListColors[ui->iStatusEx]);
+	}
+	x_offset = 2;
+
+	if (g_Settings.bShowContactStatus && g_Settings.bContactStatusFirst && ui->ContactStatus) {
+		HICON icon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
+		DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 8, icon, 16, 16, 0, nullptr, DI_NORMAL);
+		IcoLib_ReleaseIcon(icon);
+		x_offset += 18;
+	}
+
+	if (g_Settings.bClassicIndicators) {
+		char szTemp[3];
+		szTemp[1] = 0;
+		szTemp[0] = szIndicators[nickIndex];
+		if (szTemp[0]) {
+			SIZE szUmode;
+			GetTextExtentPoint32A(dis->hDC, szTemp, 1, &szUmode);
+			TextOutA(dis->hDC, x_offset, dis->rcItem.top, szTemp, 1);
+			x_offset += szUmode.cx + 2;
+		}
+		else x_offset += 8;
+	}
+	else {
+		DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 5, hIcon, 10, 10, 0, nullptr, DI_NORMAL);
+		x_offset += 12;
+	}
+
+	if (g_Settings.bShowContactStatus && !g_Settings.bContactStatusFirst && ui->ContactStatus) {
+		HICON icon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
+		DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 8, icon, 16, 16, 0, nullptr, DI_NORMAL);
+		IcoLib_ReleaseIcon(icon);
+		x_offset += 18;
+	}
+
+	SIZE sz;
+	if (m_iSearchItem != -1 && m_iSearchItem == index && m_wszSearch[0]) {
+		COLORREF clr_orig = GetTextColor(dis->hDC);
+		GetTextExtentPoint32(dis->hDC, ui->pszNick, (int)mir_wstrlen(m_wszSearch), &sz);
+		SetTextColor(dis->hDC, RGB(250, 250, 0));
+		TextOut(dis->hDC, x_offset, (dis->rcItem.top + dis->rcItem.bottom - sz.cy) / 2, ui->pszNick, (int)mir_wstrlen(m_wszSearch));
+		SetTextColor(dis->hDC, clr_orig);
+		x_offset += sz.cx;
+		TextOut(dis->hDC, x_offset, (dis->rcItem.top + dis->rcItem.bottom - sz.cy) / 2, ui->pszNick + mir_wstrlen(m_wszSearch), int(mir_wstrlen(ui->pszNick) - mir_wstrlen(m_wszSearch)));
+	}
+	else {
+		GetTextExtentPoint32(dis->hDC, ui->pszNick, (int)mir_wstrlen(ui->pszNick), &sz);
+		TextOut(dis->hDC, x_offset, (dis->rcItem.top + dis->rcItem.bottom - sz.cy) / 2, ui->pszNick, (int)mir_wstrlen(ui->pszNick));
+		SelectObject(dis->hDC, hOldFont);
+	}
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
 void CMsgDialog::EnableSendButton(bool bMode) const
 {
 	SendDlgItemMessage(m_hwnd, IDOK, BUTTONSETASNORMAL, bMode, 0);
@@ -1892,6 +1978,19 @@ void TSAPI CleanTempFiles()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
+
+void CMsgDialog::SetFilter(uint32_t dwFlags)
+{
+	m_iLogFilterFlags = dwFlags;
+
+	if (dwFlags == 0) {
+		m_bFilterEnabled = false;
+		m_btnFilter.Disable();
+	}
+	else m_btnFilter.Enable();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
 // Sets a status bar text for a contact
 
 void CMsgDialog::SetStatusText(const wchar_t *wszText, HICON hIcon)
@@ -2021,14 +2120,9 @@ INT_PTR CALLBACK CMsgDialog::FilterWndProc(HWND hwndDlg, UINT uMsg, WPARAM wPara
 				db_set_dw(pDlg->m_hContact, CHAT_MODULE, "TrayIconFlags", iFlags);
 				db_set_dw(pDlg->m_hContact, CHAT_MODULE, "TrayIconMask", dwMask);
 			}
-			Chat_SetFilters(pDlg->getChat());
 
-			if (pDlg->m_bFilterEnabled) {
-				if (pDlg->m_iLogFilterFlags == 0)
-					pDlg->m_btnFilter.Click();
+			if (pDlg->m_bFilterEnabled)
 				pDlg->RedrawLog();
-				db_set_b(pDlg->m_hContact, CHAT_MODULE, "FilterEnabled", pDlg->m_bFilterEnabled);
-			}
 		}
 		DestroyWindow(hwndDlg);
 		break;
@@ -2486,6 +2580,13 @@ int CMsgDialog::Typing(int secs)
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
+void CMsgDialog::UpdateFilterButton()
+{
+	CSuper::UpdateFilterButton();
+
+	m_btnFilter.SendMsg(BUTTONSETOVERLAYICON, (LPARAM)(m_bFilterEnabled ? PluginConfig.g_iconOverlayDisabled : PluginConfig.g_iconOverlayEnabled), 0);
+}
+
 void CMsgDialog::UpdateNickList()
 {
 	int i = m_nickList.SendMsg(LB_GETTOPINDEX, 0, 0);
@@ -2507,7 +2608,7 @@ void CMsgDialog::UpdateOptions()
 	m_nickList.SetItemHeight(0, g_Settings.iNickListFontHeight);
 	InvalidateRect(m_nickList.GetHwnd(), nullptr, TRUE);
 
-	m_btnFilter.SendMsg(BUTTONSETOVERLAYICON, (LPARAM)(m_bFilterEnabled ? PluginConfig.g_iconOverlayEnabled : PluginConfig.g_iconOverlayDisabled), 0);
+	UpdateFilterButton();
 
 	CSuper::UpdateOptions();
 }

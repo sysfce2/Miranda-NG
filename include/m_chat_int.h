@@ -98,7 +98,7 @@ struct MIR_APP_EXPORT GCModuleInfoBase : public MZeroedObject, public MNonCopyab
 	
 	bool     bBold, bItalics, bUnderline;
 	bool     bColor, bBkgColor;
-	bool     bChanMgr, bAckMsg, bDatabase;
+	bool     bChanMgr, bAckMsg, bDatabase, bPersistent;
 	
 	int      iMaxText;
 };
@@ -144,6 +144,7 @@ struct MIR_APP_EXPORT SESSION_INFO : public MZeroedObject, public MNonCopyable
 	bool        bHasNicklist;
 	bool        bTrimmed;
 	bool        bHistoryInit;
+	bool        bIsDirty;
 
 	char*       pszModule;
 	wchar_t*    ptszID;
@@ -154,7 +155,7 @@ struct MIR_APP_EXPORT SESSION_INFO : public MZeroedObject, public MNonCopyable
 	int         iType;
 	int         iEventCount;
 	int         iStatusCount;
-	int         iLogTrayFlags, iLogPopupFlags;
+	int         iTrayFlags, iPopupFlags;
 
 	uint16_t    wStatus;
 	uint16_t    wState;
@@ -218,8 +219,6 @@ struct GlobalLogSettingsBase
 	bool		bShowContactStatus;
 	bool		bContactStatusFirst;
 	uint32_t dwIconFlags;
-	uint32_t dwTrayIconFlags;
-	uint32_t dwPopupFlags;
 	int      LogIconSize;
 	int      LogTextIndent;
 	int      LoggingLimit;
@@ -412,6 +411,13 @@ namespace Chat
 		bLogIndentEnabled,
 		bLogLimitNames,
 		bStripFormat;
+
+	extern MIR_APP_EXPORT CMOption<uint32_t>
+		iPopupFlags,
+		iSoundFlags,
+		iFilterFlags,
+		iDiskLogFlags,
+		iTrayIconFlags;
 };
 
 #endif // M_CHAT_INT_H__

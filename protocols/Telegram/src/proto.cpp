@@ -35,7 +35,7 @@ static int CompareSuperGroups(const TG_SUPER_GROUP *p1, const TG_SUPER_GROUP *p2
 CTelegramProto::CTelegramProto(const char* protoName, const wchar_t* userName) :
 	PROTO<CTelegramProto>(protoName, userName),
 	m_impl(*this),
-	m_arFiles(1),
+	m_arFiles(1, PtrKeySortT),
 	m_arChats(100, CompareChats),
 	m_arUsers(100, CompareUsers),
 	m_arRequests(10, CompareRequests),
@@ -61,7 +61,7 @@ CTelegramProto::CTelegramProto(const char* protoName, const wchar_t* userName) :
 
 	HookProtoEvent(ME_HISTORY_EMPTY, &CTelegramProto::OnEmptyHistory);
 	HookProtoEvent(ME_OPT_INITIALISE, &CTelegramProto::OnOptionsInit);
-	
+
 	// avatar
 	CreateDirectoryTreeW(GetAvatarPath());
 
@@ -77,11 +77,12 @@ CTelegramProto::CTelegramProto(const char* protoName, const wchar_t* userName) :
 
 	// groupchat initialization
 	GCREGISTER gcr = {};
-	gcr.dwFlags = GC_TYPNOTIF | GC_DATABASE;
+	gcr.dwFlags = GC_TYPNOTIF | GC_DATABASE | GC_PERSISTENT;
 	gcr.ptszDispName = m_tszUserName;
 	gcr.pszModule = m_szModuleName;
 	Chat_Register(&gcr);
 
+	HookProtoEvent(ME_GC_MUTE, &CTelegramProto::GcMuteHook);
 	HookProtoEvent(ME_GC_EVENT, &CTelegramProto::GcEventHook);
 	HookProtoEvent(ME_GC_BUILDMENU, &CTelegramProto::GcMenuHook);
 }
@@ -92,7 +93,7 @@ CTelegramProto::~CTelegramProto()
 
 void CTelegramProto::OnContactDeleted(MCONTACT hContact)
 {
-	TD::int53 id = _atoi64(getMStringA(hContact, DBKEY_ID));
+	TD::int53 id = GetId(hContact);
 	if (id == 0)
 		return;
 
@@ -110,8 +111,7 @@ void CTelegramProto::OnContactDeleted(MCONTACT hContact)
 int CTelegramProto::OnEmptyHistory(WPARAM hContact, LPARAM)
 {
 	if (Proto_IsProtoOnContact(hContact, m_szModuleName)) {
-		TD::int53 id = _atoi64(getMStringA(hContact, DBKEY_ID));
-		if (auto *pUser = FindUser(id))
+		if (auto *pUser = FindUser(GetId(hContact)))
 			SendQuery(new TD::deleteChatHistory(pUser->chatId, true, true));
 	}
 
@@ -127,13 +127,10 @@ void CTelegramProto::OnModulesLoaded()
 		m_arChats.insert(pUser);
 	}
 
-	for (auto &cc : AccContacts()) {
-		ptrA szPath(getStringA(cc, "AvatarPath"));
-		if (szPath) {
-			delSetting(cc, "AvatarPath");
-			delSetting(cc, DBKEY_AVATAR_HASH);
-		}
+	int iCompatLevel = getByte(DBKEY_COMPAT);
+	VARSW cachePath(L"%miranda_userdata%\\ChatCache");
 
+	for (auto &cc : AccContacts()) {
 		bool isGroupChat = isChatRoom(cc);
 		szId = getMStringA(cc, DBKEY_ID);
 		if (!szId.IsEmpty()) {
@@ -142,8 +139,11 @@ void CTelegramProto::OnModulesLoaded()
 			m_arUsers.insert(pUser);
 			if (!isGroupChat)
 				m_arChats.insert(pUser);
+			else if (iCompatLevel < 2)
+				_wremove(CMStringW(FORMAT, L"%s\\%d.json", cachePath.get(), cc));
 		}
 	}
+	setByte(DBKEY_COMPAT, 2);
 
 	m_bSmileyAdd = ServiceExists(MS_SMILEYADD_LOADCONTACTSMILEYS);
 	if (m_bSmileyAdd) {
@@ -188,22 +188,22 @@ void CTelegramProto::OnEventDeleted(MCONTACT hContact, MEVENT hDbEvent)
 	if (!hContact)
 		return;
 
-	ptrA userId(getStringA(hContact, DBKEY_ID));
-	if (!userId)
+	auto *pUser = FindUser(GetId(hContact));
+	if (!pUser)
 		return;
 
 	DBEVENTINFO dbei = {};
 	db_event_get(hDbEvent, &dbei);
 	if (dbei.szId) {
 		mir_cslock lck(m_csDeleteMsg);
-		if (m_deleteMsgContact) {
-			if (m_deleteMsgContact != hContact)
+		if (m_deleteChatId) {
+			if (m_deleteChatId != pUser->chatId)
 				SendDeleteMsg();
 
 			m_impl.m_deleteMsg.Stop();
 		}
 
-		m_deleteMsgContact = hContact;
+		m_deleteChatId = pUser->chatId;
 		m_deleteIds.push_back(_atoi64(dbei.szId));
 		m_impl.m_deleteMsg.Start(500);
 	}
@@ -214,22 +214,22 @@ void CTelegramProto::OnMarkRead(MCONTACT hContact, MEVENT hDbEvent)
 	if (!hContact)
 		return;
 
-	ptrA userId(getStringA(hContact, DBKEY_ID));
-	if (!userId)
+	auto *pUser = FindUser(GetId(hContact));
+	if (!pUser)
 		return;
 
 	DBEVENTINFO dbei = {};
 	db_event_get(hDbEvent, &dbei);
 	if (dbei.szId) {
 		mir_cslock lck(m_csMarkRead);
-		if (m_markContact) {
-			if (m_markContact != hContact)
+		if (m_markChatId) {
+			if (m_markChatId != hContact)
 				SendMarkRead();
 
 			m_impl.m_markRead.Stop();
 		}
 
-		m_markContact = hContact;
+		m_markChatId = pUser->chatId;
 		m_markIds.push_back(_atoi64(dbei.szId));
 		m_impl.m_markRead.Start(500);
 	}

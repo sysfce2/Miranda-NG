@@ -17,43 +17,56 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "stdafx.h"
 
-void CTelegramProto::InitGroupChat(TG_USER *pUser, const TD::chat *pChat, bool bUpdateMembers)
+void CTelegramProto::InitGroupChat(TG_USER *pUser, const TD::chat *pChat)
 {
 	if (pUser->m_si)
 		return;
 		
 	wchar_t wszId[100];
 	_i64tow(pUser->id, wszId, 10);
+
 	SESSION_INFO *si;
+	Utf2T wszNick(pChat->title_.c_str());
 
-	if (bUpdateMembers) {
-		si = Chat_NewSession(GCW_CHATROOM, m_szModuleName, wszId, Utf2T(pChat->title_.c_str()), pUser);
-		Chat_AddGroup(si, TranslateT("Creator"));
-		Chat_AddGroup(si, TranslateT("Admin"));
-		Chat_AddGroup(si, TranslateT("Participant"));
+	if (pUser->bLoadMembers) {
+		si = Chat_NewSession(GCW_CHATROOM, m_szModuleName, wszId, wszNick, pUser);
+		if (!si->pStatuses) {
+			Chat_AddGroup(si, TranslateT("Creator"));
+			Chat_AddGroup(si, TranslateT("Admin"));
+			Chat_AddGroup(si, TranslateT("Participant"));
 
-		// push async query to fetch users
-		SendQuery(new TD::getBasicGroupFullInfo(pUser->id), &CTelegramProto::StartGroupChat, pUser);
+			// push async query to fetch users
+			if (m_arBasicGroups.find((TG_BASIC_GROUP*)&pUser->id))
+				SendQuery(new TD::getBasicGroupFullInfo(pUser->id), &CTelegramProto::StartGroupChat, pUser);
+			else
+				SendQuery(new TD::getSupergroupMembers(pUser->id, 0, 0, 100), &CTelegramProto::StartGroupChat, pUser);
+		}
+		else {
+			Chat_Control(si, m_bHideGroupchats ? WINDOW_HIDDEN : SESSION_INITDONE);
+			Chat_Control(si, SESSION_ONLINE);
+		}
 	}
 	else {
-		si = Chat_NewSession(GCW_CHANNEL, m_szModuleName, wszId, Utf2T(pChat->title_.c_str()), pUser);
-		Chat_AddGroup(si, TranslateT("SuperAdmin"));
-		Chat_AddGroup(si, TranslateT("Visitor"));
+		si = Chat_NewSession(GCW_CHANNEL, m_szModuleName, wszId, wszNick, pUser);
+		if (!si->pStatuses) {
+			Chat_AddGroup(si, TranslateT("SuperAdmin"));
+			Chat_AddGroup(si, TranslateT("Visitor"));
 
-		ptrW wszUserId(getWStringA(DBKEY_ID)), wszNick(Contact::GetInfo(CNF_DISPLAY, 0, m_szModuleName));
+			ptrW wszMyId(getWStringA(DBKEY_ID)), wszMyNick(Contact::GetInfo(CNF_DISPLAY, 0, m_szModuleName));
 
-		GCEVENT gce = { si, GC_EVENT_JOIN };
-		gce.pszUID.w = wszUserId;
-		gce.pszNick.w = wszNick;
-		gce.bIsMe = true;
-		gce.pszStatus.w = TranslateT("Visitor");
-		Chat_Event(&gce);
+			GCEVENT gce = { si, GC_EVENT_JOIN };
+			gce.pszUID.w = wszMyId;
+			gce.pszNick.w = wszMyNick;
+			gce.bIsMe = true;
+			gce.pszStatus.w = TranslateT("Visitor");
+			Chat_Event(&gce);
 
-		gce.bIsMe = false;
-		gce.pszUID.w = L"---";
-		gce.pszNick.w = TranslateT("Admin");
-		gce.pszStatus.w = TranslateT("SuperAdmin");
-		Chat_Event(&gce);
+			gce.bIsMe = false;
+			gce.pszUID.w = wszId;
+			gce.pszNick.w = wszNick;
+			gce.pszStatus.w = TranslateT("SuperAdmin");
+			Chat_Event(&gce);
+		}
 
 		Chat_Control(si, m_bHideGroupchats ? WINDOW_HIDDEN : SESSION_INITDONE);
 		Chat_Control(si, SESSION_ONLINE);
@@ -67,15 +80,25 @@ void CTelegramProto::StartGroupChat(td::ClientManager::Response &response, void 
 	if (!response.object)
 		return;
 
-	if (response.object->get_id() != TD::basicGroupFullInfo::ID) {
+	TD::array<TD::object_ptr<TD::chatMember>> *pMembers;
+
+	switch (response.object->get_id()) {
+	case TD::basicGroupFullInfo::ID:
+		pMembers = &((TD::basicGroupFullInfo *)response.object.get())->members_;
+		break;
+
+	case TD::chatMembers::ID:
+		pMembers = &((TD::chatMembers *)response.object.get())->members_;
+		break;
+
+	default:
 		debugLogA("Gotten class ID %d instead of %d, exiting", response.object->get_id(), TD::basicGroupFullInfo::ID);
 		return;
 	}
 
-	auto *pInfo = ((TD::basicGroupFullInfo *)response.object.get());
 	auto *pUser = (TG_USER *)pUserData;
 
-	for (auto &it : pInfo->members_) {
+	for (auto &it : *pMembers) {
 		auto *pMember = it.get();
 		const wchar_t *pwszRole;
 
@@ -130,6 +153,32 @@ void CTelegramProto::StartGroupChat(td::ClientManager::Response &response, void 
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
+int CTelegramProto::GcMuteHook(WPARAM hContact, LPARAM mode)
+{
+	if (Proto_IsProtoOnContact(hContact, m_szModuleName)) {
+		if (auto *pUser = FindUser(GetId(hContact))) {
+			auto settings = TD::make_object<TD::chatNotificationSettings>();
+			memcpy(settings.get(), &pUser->notificationSettings, sizeof(pUser->notificationSettings));
+
+			switch (mode) {
+			case CHATMODE_MUTE:
+				settings->use_default_mute_for_ = false;
+				settings->mute_for_ = 45000000;
+				break;
+
+			default:
+				settings->use_default_mute_for_ = true;
+				settings->mute_for_ = 0;
+				break;
+			}
+			SendQuery(new TD::setChatNotificationSettings(pUser->chatId, std::move(settings)));
+		}
+	}
+	return 0;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
 enum
 {
 	IDM_LEAVE = 1,
@@ -174,7 +223,7 @@ void CTelegramProto::Chat_LogMenu(GCHOOK *gch)
 {
 	switch (gch->dwData) {
 	case IDM_LEAVE:
-		int64_t id(_atoi64(getMStringA(gch->si->hContact, DBKEY_ID)));
+		int64_t id = GetId(gch->si->hContact);
 		if (auto *pUser = FindUser(id)) {
 			pUser->m_si = nullptr;
 			SendQuery(new TD::leaveChat(pUser->chatId));

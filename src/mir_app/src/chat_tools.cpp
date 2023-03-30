@@ -158,6 +158,9 @@ static void AddEvent(MCONTACT hContact, HICON hIcon, int type, const wchar_t *pw
 
 BOOL DoTrayIcon(SESSION_INFO *si, GCEVENT *gce)
 {
+	if (si == nullptr || !(si->iTrayFlags & gce->iType))
+		return FALSE;
+
 	int iMuteMode = Chat_IsMuted(si->hContact);
 	switch (iMuteMode) {
 	case CHATMODE_MUTE: iMuteMode = CLEF_ONLYAFEW; break;
@@ -296,6 +299,9 @@ int ShowPopup(MCONTACT hContact, SESSION_INFO *si, HICON hIcon, char *pszProtoNa
 
 BOOL DoPopup(SESSION_INFO *si, GCEVENT *gce)
 {
+	if (si == nullptr || !(si->iPopupFlags & gce->iType))
+		return FALSE;
+
 	fakeLOGINFO lin(gce);
 	CMStringW wszText, wszNick;
 	g_chatApi.CreateNick(si, &lin, wszNick);
@@ -305,13 +311,13 @@ BOOL DoPopup(SESSION_INFO *si, GCEVENT *gce)
 
 	switch (gce->iType) {
 	case GC_EVENT_MESSAGE | GC_EVENT_HIGHLIGHT:
-		dwColor = g_chatApi.aFonts[16].color; wszText.Format(TranslateT("%s says"), wszNick.c_str());
+		dwColor = g_chatApi.aFonts[16].color; wszText.Format(L"%s:", wszNick.c_str());
 		break;
 	case GC_EVENT_ACTION | GC_EVENT_HIGHLIGHT:
 		dwColor = g_chatApi.aFonts[16].color;
 		break;
 	case GC_EVENT_MESSAGE:
-		dwColor = g_chatApi.aFonts[9].color; wszText.Format(TranslateT("%s says"), wszNick.c_str());
+		dwColor = g_chatApi.aFonts[9].color; wszText.Format(L"%s:", wszNick.c_str());
 		break;
 	case GC_EVENT_ACTION:
 		dwColor = g_chatApi.aFonts[15].color;
@@ -466,7 +472,7 @@ BOOL LogToFile(SESSION_INFO *si, GCEVENT *gce)
 		return FALSE;
 
 	// check whether we have to log this event
-	if (!(gce->iType & g_dwDiskLogFlags))
+	if (!(gce->iType & Chat::iDiskLogFlags))
 		return FALSE;
 
 	wchar_t p = '\0';
@@ -830,4 +836,106 @@ MIR_APP_DLL(int) Chat_GetTextPixelSize(const wchar_t *pszText, HFONT hFont, bool
 	SelectObject(hdc, hOldFont);
 	ReleaseDC(nullptr, hdc);
 	return bWidth ? rc.right - rc.left : rc.bottom - rc.top;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// Chat serialization
+
+CMStringW Chat_GetFolderName(SESSION_INFO *si)
+{
+	CMStringW ret(VARSW(L"%miranda_userdata%\\ChatCache"));
+	if (si)
+		ret.AppendFormat(L"\\%d.json", si->hContact);
+	
+	return ret;
+}
+
+void Chat_Serialize(SESSION_INFO *si)
+{
+	si->bIsDirty = false;
+
+	if (!si->pMI->bPersistent)
+		return;
+
+	JSONNode pRoleList(JSON_ARRAY); pRoleList.set_name("roles");
+	for (auto *p = si->pStatuses; p; p = p->next) {
+		JSONNode role;
+		role << JSONNode("id", p->iStatus) << JSONNode("name", p->pszGroup);
+		pRoleList << role;
+	}
+
+	JSONNode pUserList(JSON_ARRAY); pUserList.set_name("users");
+	for (auto &it : si->arUsers) {
+		JSONNode user;
+		user << JSONNode("id", it->pszUID) << JSONNode("nick", it->pszNick) << JSONNode("role", it->Status) << JSONNode("isMe", it == si->pMe);
+		pUserList << user;
+	}
+
+	JSONNode root;
+	root << pRoleList << pUserList;
+	if (si->ptszName)
+		root << JSONNode("name", si->ptszName);
+	if (si->ptszTopic)
+		root << JSONNode("topic", si->ptszTopic);
+
+	ptrW wszText(json_write(&root));
+	if (wszText) {
+		if (FILE *out = _wfopen(Chat_GetFolderName(si), L"w")) {
+			fputs(T2Utf(wszText), out);
+			fclose(out);
+		}
+	}
+}
+
+bool Chat_Unserialize(SESSION_INFO *si)
+{
+	FILE *in = _wfopen(Chat_GetFolderName(si), L"r");
+	if (in == nullptr)
+		return false;
+
+	CMStringA szJson;
+	unsigned iFileLength = filelength(fileno(in));
+	szJson.Truncate(iFileLength);
+	fread(szJson.GetBuffer(), 1, iFileLength, in);
+	fclose(in);
+
+	JSONNode root = JSONNode::parse(szJson);
+	if (!root)
+		return false;
+
+	CMStringW str = root["name"].as_mstring();
+	if (!str.IsEmpty())
+		si->ptszName = str.Detach();
+
+	str = root["topic"].as_mstring();
+	if (!str.IsEmpty())
+		si->ptszTopic = str.Detach();
+
+	auto &pRoles = root["roles"];
+	for (auto it = pRoles.rbegin(); it != pRoles.rend(); ++it)
+		if (auto *pStatus = TM_AddStatus(&si->pStatuses, (*it)["name"].as_mstring(), &si->iStatusCount))
+			si->iStatusCount++;
+
+	for (auto &it : root["users"]) {
+		int iStatus = it["role"].as_int();
+		USERINFO *ui = UM_AddUser(si, it["id"].as_mstring(), it["nick"].as_mstring(), iStatus);
+		if (ui == nullptr)
+			continue;
+
+		if (g_chatApi.OnAddUser)
+			g_chatApi.OnAddUser(si, ui);
+
+		if (it["isMe"].as_bool())
+			si->pMe = ui;
+		ui->Status = iStatus;
+		ui->Status |= si->pStatuses->iStatus;
+
+		if (g_chatApi.OnNewUser)
+			g_chatApi.OnNewUser(si, ui);
+	}
+
+	if (si->pDlg)
+		si->pDlg->UpdateNickList();
+
+	return true;
 }

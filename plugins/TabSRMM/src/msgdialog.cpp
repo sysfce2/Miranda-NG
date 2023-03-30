@@ -410,7 +410,7 @@ bool CMsgDialog::OnInitDialog()
 	if (m_bIsMeta)
 		m_cache->updateMeta();
 
-	if (m_si) {
+	if (isChat()) {
 		m_si->pDlg = this;
 		Chat_SetFilters(m_si);
 
@@ -996,14 +996,15 @@ void CMsgDialog::onClick_Filter(CCtrlButton *pButton)
 		return;
 
 	m_bFilterEnabled = !m_bFilterEnabled;
-	m_btnFilter.SendMsg(BUTTONSETOVERLAYICON, (LPARAM)(m_bFilterEnabled ? PluginConfig.g_iconOverlayEnabled : PluginConfig.g_iconOverlayDisabled), 0);
+	UpdateFilterButton();
+	db_set_b(m_si->hContact, CHAT_MODULE, "FilterEnabled", m_bFilterEnabled);
+	Chat_SetFilters(m_si);
 
 	if (m_bFilterEnabled && !g_chatApi.bRightClickFilter) 
 		ShowFilterMenu();
 	else {
 		RedrawLog();
 		UpdateTitle();
-		db_set_b(m_si->hContact, CHAT_MODULE, "FilterEnabled", m_bFilterEnabled);
 	}
 }
 
@@ -1124,22 +1125,20 @@ int CMsgDialog::Resizer(UTILRESIZECONTROL *urc)
 	if (m_panelStatusCX == 0)
 		m_panelStatusCX = 80;
 
-	if (m_si) {
+	if (isChat()) {
 		if (m_si->iType != GCW_SERVER) {
 			m_nickList.Show(m_bNicklistEnabled);
 			Utils::showDlgControl(m_hwnd, IDC_SPLITTERX, m_bNicklistEnabled ? SW_SHOW : SW_HIDE);
 
 			m_btnNickList.Enable(true);
-			m_btnFilter.Enable(true);
+			m_btnFilter.Enable(m_iLogFilterFlags != 0);
 			if (m_si->iType == GCW_CHATROOM)
 				m_btnChannelMgr.Enable(m_si->pMI->bChanMgr);
 		}
 		else {
 			m_nickList.Hide();
 			Utils::showDlgControl(m_hwnd, IDC_SPLITTERX, SW_HIDE);
-		}
 
-		if (m_si->iType == GCW_SERVER) {
 			m_btnNickList.Enable(false);
 			m_btnFilter.Enable(false);
 			m_btnChannelMgr.Enable(false);
@@ -2649,93 +2648,8 @@ INT_PTR CMsgDialog::DlgProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 				return Menu_DrawItem(lParam);
 			}
 
-			if (dis->CtlID == IDC_SRMM_NICKLIST) {
-				int x_offset = 0;
-				int index = dis->itemID;
-
-				USERINFO *ui = g_chatApi.UM_FindUserFromIndex(m_si, index);
-				if (ui == nullptr)
-					return TRUE;
-
-				int height = dis->rcItem.bottom - dis->rcItem.top;
-				if (height & 1)
-					height++;
-				int offset = (height == 10) ? 0 : height / 2;
-
-				HICON hIcon = g_chatApi.SM_GetStatusIcon(m_si, ui);
-				HFONT hFont = g_Settings.UserListFonts[ui->iStatusEx];
-				HFONT hOldFont = (HFONT)SelectObject(dis->hDC, hFont);
-				SetBkMode(dis->hDC, TRANSPARENT);
-
-				int nickIndex = 0;
-				for (int i = 0; i < STATUSICONCOUNT; i++) {
-					if (hIcon == g_chatApi.hStatusIcons[i]) {
-						nickIndex = i;
-						break;
-					}
-				}
-
-				if (dis->itemState & ODS_SELECTED) {
-					FillRect(dis->hDC, &dis->rcItem, g_Settings.SelectionBGBrush);
-					SetTextColor(dis->hDC, g_Settings.nickColors[6]);
-				}
-				else {
-					FillRect(dis->hDC, &dis->rcItem, g_chatApi.hListBkgBrush);
-					if (g_Settings.bColorizeNicks && nickIndex != 0)
-						SetTextColor(dis->hDC, g_Settings.nickColors[nickIndex - 1]);
-					else
-						SetTextColor(dis->hDC, g_Settings.UserListColors[ui->iStatusEx]);
-				}
-				x_offset = 2;
-
-				if (g_Settings.bShowContactStatus && g_Settings.bContactStatusFirst && ui->ContactStatus) {
-					HICON icon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
-					DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 8, icon, 16, 16, 0, nullptr, DI_NORMAL);
-					IcoLib_ReleaseIcon(icon);
-					x_offset += 18;
-				}
-
-				if (g_Settings.bClassicIndicators) {
-					char szTemp[3];
-					szTemp[1] = 0;
-					szTemp[0] = szIndicators[nickIndex];
-					if (szTemp[0]) {
-						SIZE szUmode;
-						GetTextExtentPoint32A(dis->hDC, szTemp, 1, &szUmode);
-						TextOutA(dis->hDC, x_offset, dis->rcItem.top, szTemp, 1);
-						x_offset += szUmode.cx + 2;
-					}
-					else x_offset += 8;
-				}
-				else {
-					DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 5, hIcon, 10, 10, 0, nullptr, DI_NORMAL);
-					x_offset += 12;
-				}
-
-				if (g_Settings.bShowContactStatus && !g_Settings.bContactStatusFirst && ui->ContactStatus) {
-					HICON icon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
-					DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 8, icon, 16, 16, 0, nullptr, DI_NORMAL);
-					IcoLib_ReleaseIcon(icon);
-					x_offset += 18;
-				}
-
-				SIZE sz;
-				if (m_iSearchItem != -1 && m_iSearchItem == index && m_wszSearch[0]) {
-					COLORREF clr_orig = GetTextColor(dis->hDC);
-					GetTextExtentPoint32(dis->hDC, ui->pszNick, (int)mir_wstrlen(m_wszSearch), &sz);
-					SetTextColor(dis->hDC, RGB(250, 250, 0));
-					TextOut(dis->hDC, x_offset, (dis->rcItem.top + dis->rcItem.bottom - sz.cy) / 2, ui->pszNick, (int)mir_wstrlen(m_wszSearch));
-					SetTextColor(dis->hDC, clr_orig);
-					x_offset += sz.cx;
-					TextOut(dis->hDC, x_offset, (dis->rcItem.top + dis->rcItem.bottom - sz.cy) / 2, ui->pszNick + mir_wstrlen(m_wszSearch), int(mir_wstrlen(ui->pszNick) - mir_wstrlen(m_wszSearch)));
-				}
-				else {
-					GetTextExtentPoint32(dis->hDC, ui->pszNick, (int)mir_wstrlen(ui->pszNick), &sz);
-					TextOut(dis->hDC, x_offset, (dis->rcItem.top + dis->rcItem.bottom - sz.cy) / 2, ui->pszNick, (int)mir_wstrlen(ui->pszNick));
-					SelectObject(dis->hDC, hOldFont);
-				}
-				return TRUE;
-			}
+			if (dis->CtlID == IDC_SRMM_NICKLIST)
+				break;
 		}
 		return MsgWindowDrawHandler((DRAWITEMSTRUCT *)lParam);
 

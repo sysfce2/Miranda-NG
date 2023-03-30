@@ -101,9 +101,8 @@ void CTelegramProto::SendDeleteMsg()
 	m_impl.m_deleteMsg.Stop();
 
 	mir_cslock lck(m_csDeleteMsg);
-	int64_t userId = _atoi64(getMStringA(m_deleteMsgContact, DBKEY_ID));
-	SendQuery(new TD::deleteMessages(userId, std::move(m_deleteIds), true));
-	m_markContact = 0;
+	SendQuery(new TD::deleteMessages(m_deleteChatId, std::move(m_deleteIds), true));
+	m_deleteChatId = 0;
 }
 
 void CTelegramProto::SendMarkRead()
@@ -111,9 +110,8 @@ void CTelegramProto::SendMarkRead()
 	m_impl.m_markRead.Stop();
 
 	mir_cslock lck(m_csMarkRead);
-	int64_t userId = _atoi64(getMStringA(m_markContact, DBKEY_ID));
-	SendQuery(new TD::viewMessages(userId, 0, std::move(m_markIds), true));
-	m_markContact = 0;
+	SendQuery(new TD::viewMessages(m_markChatId, 0, std::move(m_markIds), true));
+	m_markChatId = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -166,6 +164,10 @@ void CTelegramProto::ProcessResponse(td::ClientManager::Response response)
 
 	case TD::updateDeleteMessages::ID:
 		ProcessDeleteMessage((TD::updateDeleteMessages*)response.object.get());
+		break;
+
+	case TD::updateConnectionState::ID:
+		ProcessConnectionState((TD::updateConnectionState *)response.object.get());
 		break;
 
 	case TD::updateFile::ID:
@@ -267,13 +269,21 @@ void CTelegramProto::SendQuery(TD::Function *pFunc, TG_QUERY_HANDLER_FULL pHandl
 
 void CTelegramProto::ProcessBasicGroup(TD::updateBasicGroup *pObj)
 {
-	auto iStatusId = pObj->basic_group_->status_->get_id();
+	auto *pBasicGroup = pObj->basic_group_.get();
+	if (pBasicGroup->upgraded_to_supergroup_id_)
+		if (auto *pUser = FindUser(pBasicGroup->upgraded_to_supergroup_id_)) {
+			pUser->bLoadMembers = true;
+			if (pUser->m_si)
+				pUser->m_si->bHasNicklist = true;
+		}
+
+	auto iStatusId = pBasicGroup->status_->get_id();
 	if (iStatusId == TD::chatMemberStatusBanned::ID) {
 		debugLogA("We are banned here, skipping");
 		return;
 	}
 	
-	TG_BASIC_GROUP tmp(pObj->basic_group_->id_, 0);
+	TG_BASIC_GROUP tmp(pBasicGroup->id_, 0);
 	auto *pGroup = m_arBasicGroups.find(&tmp);
 	if (pGroup == nullptr) {
 		pGroup = new TG_BASIC_GROUP(tmp.id, std::move(pObj->basic_group_));
@@ -281,16 +291,18 @@ void CTelegramProto::ProcessBasicGroup(TD::updateBasicGroup *pObj)
 	}
 	else pGroup->group = std::move(pObj->basic_group_);
 
+	TG_USER *pUser;
 	if (iStatusId == TD::chatMemberStatusLeft::ID) {
-		auto *pUser = AddFakeUser(tmp.id, true);
+		pUser = AddFakeUser(tmp.id, true);
 		pUser->wszLastName.Format(TranslateT("%d member(s)"), pGroup->group->member_count_);
 	}
-	else AddUser(tmp.id, true);
+	else pUser = AddUser(tmp.id, true);
+
+	pUser->bLoadMembers = true;
 }
 
 void CTelegramProto::ProcessChat(TD::updateNewChat *pObj)
 {
-	bool bIsBasicGroup = false;
 	int64_t chatId;
 	auto *pChat = pObj->chat_.get();
 	std::string szTitle;
@@ -302,13 +314,11 @@ void CTelegramProto::ProcessChat(TD::updateNewChat *pObj)
 		break;
 
 	case TD::chatTypeBasicGroup::ID:
-		bIsBasicGroup = true;
 		chatId = ((TD::chatTypeBasicGroup*)pChat->type_.get())->basic_group_id_;
 		szTitle = pChat->title_;
 		break;
 
 	case TD::chatTypeSupergroup::ID:
-		bIsBasicGroup = false;
 		chatId = ((TD::chatTypeSupergroup *)pChat->type_.get())->supergroup_id_;
 		szTitle = pChat->title_;
 		break;
@@ -335,7 +345,7 @@ void CTelegramProto::ProcessChat(TD::updateNewChat *pObj)
 			return;
 
 		if (pUser->isGroupChat && pUser->hContact != INVALID_CONTACT_ID)
-			InitGroupChat(pUser, pChat, bIsBasicGroup);
+			InitGroupChat(pUser, pChat);
 	}
 	else debugLogA("Unknown chat id %lld, ignoring", chatId);
 }
@@ -374,6 +384,8 @@ void CTelegramProto::ProcessChatNotification(TD::updateChatNotificationSettings 
 		Chat_Mute(pUser->hContact, CHATMODE_MUTE);
 	else
 		Chat_Mute(pUser->hContact, CHATMODE_NORMAL);
+
+	memcpy(&pUser->notificationSettings, pSettings.get(), sizeof(pUser->notificationSettings));
 }
 
 void CTelegramProto::ProcessChatPosition(TD::updateChatPosition *pObj)
@@ -409,6 +421,35 @@ void CTelegramProto::ProcessChatPosition(TD::updateChatPosition *pObj)
 			}
 		}
 	}
+}
+
+void CTelegramProto::ProcessConnectionState(TD::updateConnectionState *pObj)
+{
+	pConnState = std::move(pObj->state_);
+
+	switch (pConnState->get_id()) {
+	case TD::connectionStateConnecting::ID:
+		debugLogA("Connection state: connecting");
+		break;
+
+	case TD::connectionStateConnectingToProxy::ID:
+		debugLogA("Connection state: connecting to proxy");
+		break;
+
+	case TD::connectionStateWaitingForNetwork::ID:
+		debugLogA("Connection state: waiting for network");
+		break;
+
+	case TD::connectionStateUpdating::ID:
+		debugLogA("Connection state: updating");
+		break;
+
+	case TD::connectionStateReady::ID:
+		debugLogA("Connection state: connected");
+		if (pAuthState->get_id() == TD::authorizationStateReady::ID)
+			OnLoggedIn();
+		break;
+	}		
 }
 
 void CTelegramProto::ProcessDeleteMessage(TD::updateDeleteMessages *pObj)
@@ -527,7 +568,7 @@ void CTelegramProto::ProcessMessage(TD::updateNewMessage *pObj)
 		if (auto *pSender = GetSender(pMessage->sender_id_.get())) {
 			_i64toa(pSender->id, szUserId, 10);
 			pre.szUserId = szUserId;
-			if (pUser->m_si)
+			if (pUser->m_si && !pSender->wszFirstName.IsEmpty())
 				g_chatApi.UM_AddUser(pUser->m_si, Utf2T(szUserId), pSender->getDisplayName(), ID_STATUS_ONLINE);
 		}
 	}

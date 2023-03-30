@@ -248,12 +248,14 @@ public:
 
 	virtual void AddLog();
 	virtual void CloseTab() {}
+	virtual void DrawNickList(USERINFO *ui, DRAWITEMSTRUCT *dis) PURE;
 	virtual void EventAdded(MEVENT, const DBEVENTINFO &dbei) PURE;
 	virtual bool GetFirstEvent() PURE;
 	virtual bool IsActive() const PURE;
 	virtual void LoadSettings() PURE;
 	virtual void SetStatusText(const wchar_t *, HICON) {}
 	virtual void ShowFilterMenu() {}
+	virtual void UpdateFilterButton();
 	virtual void UpdateNickList() {}
 	virtual void UpdateOptions();
 	virtual void UpdateStatusBar() {}

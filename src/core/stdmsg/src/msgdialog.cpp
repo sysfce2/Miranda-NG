@@ -285,7 +285,8 @@ void CMsgDialog::onClick_Filter(CCtrlButton *pButton)
 		return;
 
 	m_bFilterEnabled = !m_bFilterEnabled;
-	pButton->SendMsg(BM_SETIMAGE, IMAGE_ICON, (LPARAM)g_plugin.getIcon(m_bFilterEnabled ? IDI_FILTER2 : IDI_FILTER, FALSE));
+	UpdateFilterButton();
+
 	if (m_bFilterEnabled && !g_chatApi.bRightClickFilter)
 		ShowFilterMenu();
 	else
@@ -298,7 +299,7 @@ void CMsgDialog::onClick_NickList(CCtrlButton *pButton)
 		return;
 
 	m_bNicklistEnabled = !m_bNicklistEnabled;
-	pButton->SendMsg(BM_SETIMAGE, IMAGE_ICON, (LPARAM)g_plugin.getIcon(m_bNicklistEnabled ? IDI_NICKLIST2 : IDI_NICKLIST, FALSE));
+	UpdateFilterButton();
 
 	m_pLog->ScrollToBottom();
 	Resize();
@@ -352,7 +353,7 @@ void CMsgDialog::onClick_Ok(CCtrlButton *pButton)
 					m_autoClose = CLOSE_ON_OK;
 				}
 				else if (g_plugin.bAutoMin)
-					::ShowWindow(GetParent(m_hwndParent), SW_MINIMIZE);
+					::ShowWindow(m_hwndParent, SW_MINIMIZE);
 			}
 			else {
 				if (g_plugin.bAutoClose)
@@ -577,13 +578,6 @@ INT_PTR CMsgDialog::DlgProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 			CSuper::DlgProc(uMsg, wParam, lParam); // call built-in resizer
 			SetButtonsPos();
-			m_pLog->Resize();
-
-			InvalidateRect(m_pOwner->m_hwndStatus, nullptr, true);
-			RedrawWindow(m_message.GetHwnd(), nullptr, nullptr, RDW_INVALIDATE);
-			RedrawWindow(m_btnOk.GetHwnd(), nullptr, nullptr, RDW_INVALIDATE);
-			if (g_plugin.bShowAvatar && m_avatarPic)
-				RedrawWindow(m_avatar.GetHwnd(), nullptr, nullptr, RDW_INVALIDATE);
 		}
 		return TRUE;
 
@@ -627,46 +621,6 @@ INT_PTR CMsgDialog::DlgProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 				CallService(MS_AV_DRAWAVATAR, 0, (LPARAM)&adr);
 				return TRUE;
 			}
-
-			if (dis->CtlID == IDC_SRMM_NICKLIST) {
-				int index = dis->itemID;
-				USERINFO *ui = g_chatApi.SM_GetUserFromIndex(m_si->ptszID, m_si->pszModule, index);
-				if (ui) {
-					int x_offset = 2;
-
-					int height = dis->rcItem.bottom - dis->rcItem.top;
-					if (height & 1)
-						height++;
-
-					int offset = (height == 10) ? 0 : height / 2 - 4;
-					HFONT hFont = (ui->iStatusEx == 0) ? g_Settings.UserListFont : g_Settings.UserListHeadingsFont;
-					HFONT hOldFont = (HFONT)SelectObject(dis->hDC, hFont);
-					SetBkMode(dis->hDC, TRANSPARENT);
-
-					if (dis->itemAction == ODA_FOCUS && dis->itemState & ODS_SELECTED)
-						FillRect(dis->hDC, &dis->rcItem, g_chatApi.hListSelectedBkgBrush);
-					else //if (dis->itemState & ODS_INACTIVE)
-						FillRect(dis->hDC, &dis->rcItem, g_chatApi.hListBkgBrush);
-
-					if (g_Settings.bShowContactStatus && g_Settings.bContactStatusFirst && ui->ContactStatus) {
-						HICON hIcon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
-						DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 3, hIcon, 16, 16, 0, nullptr, DI_NORMAL);
-						x_offset += 18;
-					}
-					DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset, g_chatApi.SM_GetStatusIcon(m_si, ui), 10, 10, 0, nullptr, DI_NORMAL);
-					x_offset += 12;
-					if (g_Settings.bShowContactStatus && !g_Settings.bContactStatusFirst && ui->ContactStatus) {
-						HICON hIcon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
-						DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 3, hIcon, 16, 16, 0, nullptr, DI_NORMAL);
-						x_offset += 18;
-					}
-
-					SetTextColor(dis->hDC, ui->iStatusEx == 0 ? g_Settings.crUserListColor : g_Settings.crUserListHeadingsColor);
-					TextOut(dis->hDC, dis->rcItem.left + x_offset, dis->rcItem.top, ui->pszNick, (int)mir_wstrlen(ui->pszNick));
-					SelectObject(dis->hDC, hOldFont);
-				}
-				return TRUE;
-			}
 		}
 		break;
 
@@ -695,48 +649,17 @@ INT_PTR CMsgDialog::DlgProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 			if (Contact::OnList(m_hContact))
 				ShowWindow(GetDlgItem(m_hwnd, IDC_ADD), FALSE);
 			break;
+
+		case IDC_SRMM_LOG:
+			if (HIWORD(wParam) == EN_VSCROLL && m_pLog->AtBottom())
+				StopFlash();
+			break;
 		}
 		break;
 
 	case WM_NOTIFY:
-		HCURSOR hCur;
 		switch (((LPNMHDR)lParam)->idFrom) {
 		case IDC_SRMM_LOG:
-			switch (((LPNMHDR)lParam)->code) {
-			case EN_MSGFILTER:
-				switch (((MSGFILTER *)lParam)->msg) {
-				case WM_LBUTTONDOWN:
-					hCur = GetCursor();
-					if (hCur == LoadCursor(nullptr, IDC_SIZENS) || hCur == LoadCursor(nullptr, IDC_SIZEWE) || hCur == LoadCursor(nullptr, IDC_SIZENESW) || hCur == LoadCursor(nullptr, IDC_SIZENWSE)) {
-						SetWindowLongPtr(m_hwnd, DWLP_MSGRESULT, TRUE);
-						return TRUE;
-					}
-					break;
-
-				case WM_MOUSEMOVE:
-					hCur = GetCursor();
-					if (hCur == LoadCursor(nullptr, IDC_SIZENS) || hCur == LoadCursor(nullptr, IDC_SIZEWE) || hCur == LoadCursor(nullptr, IDC_SIZENESW) || hCur == LoadCursor(nullptr, IDC_SIZENWSE))
-						SetCursor(LoadCursor(nullptr, IDC_ARROW));
-					break;
-
-				case WM_RBUTTONUP:
-					SetWindowLongPtr(m_hwnd, DWLP_MSGRESULT, TRUE);
-					return TRUE;
-				}
-				break;
-
-			case EN_VSCROLL:
-				if (LOWORD(wParam) == IDC_SRMM_LOG && GetWindowLongPtr((HWND)lParam, GWL_STYLE) & WS_VSCROLL) {
-					SCROLLINFO si = {};
-					si.cbSize = sizeof(si);
-					si.fMask = SIF_PAGE | SIF_RANGE | SIF_POS;
-					GetScrollInfo((HWND)lParam, SB_VERT, &si);
-					if ((si.nPos + (int)si.nPage + 5) >= si.nMax)
-						StopFlash();
-				}
-			}
-			break;
-
 		case IDC_SRMM_MESSAGE:
 			if (((LPNMHDR)lParam)->code == EN_MSGFILTER && ((MSGFILTER *)lParam)->msg == WM_RBUTTONUP) {
 				SetWindowLongPtr(m_hwnd, DWLP_MSGRESULT, TRUE);
@@ -771,19 +694,9 @@ INT_PTR CMsgDialog::DlgProc(UINT uMsg, WPARAM wParam, LPARAM lParam)
 		SetFocus(m_message.GetHwnd());
 		break;
 
-	case WM_LBUTTONDBLCLK:
-		if (LOWORD(lParam) < 30)
-			m_pLog->ScrollToBottom();
-		break;
-
 	case WM_ACTIVATE:
-		if (LOWORD(wParam) != WA_ACTIVE)
-			break;
-
-		__fallthrough;
-
-	case WM_MOUSEACTIVATE:
-		OnActivate();
+		if (LOWORD(wParam) == WA_ACTIVE)
+			OnActivate();
 		break;
 	}
 
@@ -1001,7 +914,7 @@ LRESULT CMsgDialog::WndProc_Message(UINT msg, WPARAM wParam, LPARAM lParam)
 			}
 
 			if (m_szTabSave[0] != '\0' && wParam != VK_RIGHT && wParam != VK_LEFT && wParam != VK_SPACE && wParam != VK_RETURN && wParam != VK_BACK && wParam != VK_DELETE) {
-				if (g_Settings.bAddColonToAutoComplete && m_iTabStart == 0)
+				if (g_plugin.bAddColonToAutoComplete && m_iTabStart == 0)
 					SendMessageA(m_message.GetHwnd(), EM_REPLACESEL, FALSE, (LPARAM) ": ");
 
 				m_szTabSave[0] = '\0';
@@ -1255,6 +1168,46 @@ void CMsgDialog::CloseTab()
 	else SendMessage(m_hwndParent, WM_CLOSE, 0, 0);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////
+
+void CMsgDialog::DrawNickList(USERINFO *ui, DRAWITEMSTRUCT *dis)
+{
+	int x_offset = 2;
+
+	int height = dis->rcItem.bottom - dis->rcItem.top;
+	if (height & 1)
+		height++;
+
+	int offset = (height == 10) ? 0 : height / 2 - 4;
+	HFONT hFont = (ui->iStatusEx == 0) ? g_Settings.UserListFont : g_Settings.UserListHeadingsFont;
+	HFONT hOldFont = (HFONT)SelectObject(dis->hDC, hFont);
+	SetBkMode(dis->hDC, TRANSPARENT);
+
+	if (dis->itemAction == ODA_FOCUS && dis->itemState & ODS_SELECTED)
+		FillRect(dis->hDC, &dis->rcItem, g_chatApi.hListSelectedBkgBrush);
+	else //if (dis->itemState & ODS_INACTIVE)
+		FillRect(dis->hDC, &dis->rcItem, g_chatApi.hListBkgBrush);
+
+	if (g_Settings.bShowContactStatus && g_Settings.bContactStatusFirst && ui->ContactStatus) {
+		HICON hIcon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
+		DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 3, hIcon, 16, 16, 0, nullptr, DI_NORMAL);
+		x_offset += 18;
+	}
+	DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset, g_chatApi.SM_GetStatusIcon(m_si, ui), 10, 10, 0, nullptr, DI_NORMAL);
+	x_offset += 12;
+	if (g_Settings.bShowContactStatus && !g_Settings.bContactStatusFirst && ui->ContactStatus) {
+		HICON hIcon = Skin_LoadProtoIcon(m_si->pszModule, ui->ContactStatus);
+		DrawIconEx(dis->hDC, x_offset, dis->rcItem.top + offset - 3, hIcon, 16, 16, 0, nullptr, DI_NORMAL);
+		x_offset += 18;
+	}
+
+	SetTextColor(dis->hDC, ui->iStatusEx == 0 ? g_Settings.crUserListColor : g_Settings.crUserListHeadingsColor);
+	TextOut(dis->hDC, dis->rcItem.left + x_offset, dis->rcItem.top, ui->pszNick, (int)mir_wstrlen(ui->pszNick));
+	SelectObject(dis->hDC, hOldFont);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
 void CMsgDialog::EventAdded(MEVENT hDbEvent, const DBEVENTINFO &dbei)
 {
 	if (m_hDbEventFirst == 0)
@@ -1281,13 +1234,9 @@ void CMsgDialog::EventAdded(MEVENT hDbEvent, const DBEVENTINFO &dbei)
 			RemakeLog();
 
 		// Flash window *only* for messages, not for custom events
-		if (isMessage && !isSent) {
-			if (isActive) {
-				if (m_pLog->AtBottom())
-					StartFlash();
-			}
-			else StartFlash();
-		}
+		if (isMessage && !isSent)
+			if (!isActive || !m_pLog->AtBottom())
+				StartFlash();
 	}
 }
 

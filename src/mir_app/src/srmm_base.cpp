@@ -53,9 +53,9 @@ CSrmmBaseDialog::CSrmmBaseDialog(CMPluginBase &pPlugin, int idDialog, SESSION_IN
 	m_hContact(0),
 	m_clrInputBG(GetSysColor(COLOR_WINDOW))
 {
-	m_bFilterEnabled = db_get_b(0, CHAT_MODULE, "FilterEnabled", 0) != 0;
-	m_bNicklistEnabled = db_get_b(0, CHAT_MODULE, "ShowNicklist", 1) != 0;
-	m_iLogFilterFlags = db_get_dw(0, CHAT_MODULE, "FilterFlags", 0x03E0);
+	m_bFilterEnabled = Chat::bFilterEnabled;
+	m_iLogFilterFlags = Chat::iFilterFlags;
+	m_bNicklistEnabled = Chat::bShowNicklist;
 
 	m_btnColor.OnClick = Callback(this, &CSrmmBaseDialog::onClick_Color);
 	m_btnBkColor.OnClick = Callback(this, &CSrmmBaseDialog::onClick_BkColor);
@@ -553,6 +553,18 @@ INT_PTR CSrmmBaseDialog::DlgProc(UINT msg, WPARAM wParam, LPARAM lParam)
 		}
 		break;
 
+	case WM_DRAWITEM:
+		{
+			DRAWITEMSTRUCT *dis = (DRAWITEMSTRUCT *)lParam;
+			if (dis->CtlID == IDC_SRMM_NICKLIST) {
+				USERINFO *ui = UM_FindUserFromIndex(m_si, dis->itemID);
+				if (ui != nullptr)
+					DrawNickList(ui, dis);
+				return TRUE;
+			}
+		}
+		break;
+
 	case WM_CBD_RECREATE:
 		Srmm_CreateToolbarIcons(m_hwnd, isChat() ? BBBF_ISCHATBUTTON : BBBF_ISIMBUTTON);
 		break;
@@ -676,6 +688,11 @@ void CSrmmBaseDialog::UpdateChatLog()
 	m_pLog->LogEvents(m_si->pLogEnd, false);
 }
 
+void CSrmmBaseDialog::UpdateFilterButton()
+{
+	m_btnFilter.SendMsg(BUTTONADDTOOLTIP, (WPARAM)(m_bFilterEnabled ? TranslateT("Disable the event filter (Ctrl+F)") : TranslateT("Enable the event filter (Ctrl+F)")), BATF_UNICODE);
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////
 
 void CSrmmBaseDialog::onClick_Color(CCtrlButton *pButton)
@@ -748,7 +765,7 @@ void CSrmmBaseDialog::onClick_History(CCtrlButton *pButton)
 	if (!pButton->Enabled())
 		return;
 
-	if (m_si != nullptr)
+	if (m_si != nullptr && !m_si->pMI->bDatabase)
 		ShellExecute(m_hwnd, nullptr, g_chatApi.GetChatLogsFilename(m_si, 0), nullptr, nullptr, SW_SHOW);
 	else
 		CallService(MS_HISTORY_SHOWCONTACTHISTORY, m_hContact, 0);
@@ -768,7 +785,7 @@ void CSrmmBaseDialog::onDblClick_List(CCtrlListBox *pList)
 	ScreenToClient(pList->GetHwnd(), &hti.pt);
 
 	int item = LOWORD(pList->SendMsg(LB_ITEMFROMPOINT, 0, MAKELPARAM(hti.pt.x, hti.pt.y)));
-	USERINFO *ui = g_chatApi.UM_FindUserFromIndex(m_si, item);
+	USERINFO *ui = UM_FindUserFromIndex(m_si, item);
 	if (ui == nullptr)
 		return;
 

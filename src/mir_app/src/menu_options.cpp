@@ -318,7 +318,7 @@ public:
 
 		m_menuItems.SetFlags(MTREE_CHECKBOX | MTREE_DND);
 		m_menuItems.OnSelChanged = Callback(this, &CGenMenuOptionsPage::onMenuItemChanged);
-		m_menuItems.OnBeginDrag = Callback(this, &CGenMenuOptionsPage::onMenuItemBeginDrag);
+		m_menuItems.OnBeginDrag = BCallback(this, &CGenMenuOptionsPage::onMenuItemBeginDrag);
 
 		m_customName.SetSilent();
 		m_service.SetSilent();
@@ -572,12 +572,14 @@ public:
 		m_customName.Enable(true);
 	}
 
-	void onMenuItemBeginDrag(CCtrlTreeView::TEventInfo *evt)
+	bool onMenuItemBeginDrag(CCtrlTreeView::TEventInfo *evt)
 	{
 		MenuItemOptData *p = (MenuItemOptData*)evt->nmtv->itemNew.lParam;
 		if (p->pimi != nullptr)
 			if (p->pimi->mi.flags & CMIF_UNMOVABLE)
-				evt->nmhdr->code = 0; // reject an attempt to change item's position
+				return false; // reject an attempt to change item's position
+
+		return true;
 	}
 };
 
