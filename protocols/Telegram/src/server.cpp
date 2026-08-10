@@ -673,8 +673,11 @@ void CTelegramProto::ProcessChat(TD::updateNewChat *pObj)
 		if (pChat->permissions_)
 			Contact::Readonly(hContact, !pChat->permissions_->can_send_basic_messages_);
 
-		if (pUser->isGroupChat && pUser->m_si == nullptr)
-			InitGroupChat(pUser, (pUser->isForum) ? TranslateT("General") : Utf2T(pChat->title_.c_str()));
+		if (pUser->isGroupChat && pUser->m_si == nullptr) {
+			InitGroupChat(pUser, Utf2T(pChat->title_.c_str()));
+			if (pUser->isForum)
+				Contact::Hide(pUser->hContact);
+		}
 	}
 	else {
 		if (pUser->isGroupChat)

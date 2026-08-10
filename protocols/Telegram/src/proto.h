@@ -344,6 +344,8 @@ class CTelegramProto : public PROTO<CTelegramProto>
 	void InitGroupChat(TG_USER *pUser, const wchar_t *pwszTitle);
 	void StartGroupChat(td::ClientManager::Response &response, void *pUserData);
 	
+	void InitForumTopic(TG_USER *pUser, TD::int32 topic_id, const wchar_t *pwszTitle);
+
 	void Chat_SendPrivateMessage(GCHOOK *gch);
 	void Chat_LogMenu(GCHOOK *gch);
 

@@ -752,6 +752,13 @@ CMStringA CTelegramProto::GetMessageText(TG_USER *pUser, const TD::message *pMsg
 			ProcessAvatar(nullptr, pUser);
 		break;
 
+	case TD::messageForumTopicCreated::ID:
+		if (auto *pObj = (TD::messageForumTopicCreated *)pBody) {
+			TD::int32 topic_id = getThreadId(pMsg->topic_id_.get());
+			InitForumTopic(pUser, topic_id, Utf2T(pObj->name_.c_str()));
+		}
+		break;
+
 	case TD::messageAnimatedEmoji::ID:
 		if (auto *pObj = (TD::messageAnimatedEmoji *)pBody) {
 			if (m_bSmileyAdd) {
