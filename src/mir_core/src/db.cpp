@@ -39,7 +39,7 @@ MIR_CORE_EXPORT HANDLE
 	g_hevEventDelivered,   // ME_DB_EVENT_DELIVERED
 	g_hevEventFiltered;
 
-HANDLE 
+static HANDLE
 	hevContactAdded,       // ME_DB_CONTACT_ADDED
 	hevContactDeleted;     // ME_DB_CONTACT_DELETED
 
@@ -108,7 +108,7 @@ MIR_CORE_DLL(int) db_copy_module(const char *szModule, const char *szNewModule, 
 /////////////////////////////////////////////////////////////////////////////////////////
 // contact functions
 
-MIR_CORE_DLL(MCONTACT) db_add_contact(const char *szModule)
+MIR_CORE_DLL(MCONTACT) db_add_contact(const char *szModule, int flags)
 {
 	if (!g_pCurrDb) // if there's no active database, don't even start
 		return 0;
@@ -125,17 +125,29 @@ MIR_CORE_DLL(MCONTACT) db_add_contact(const char *szModule)
 	if (szModule && !szProto)
 		return 0;
 
-	MCONTACT hNew = g_pCurrDb->AddContact();
+	MCONTACT hContact = g_pCurrDb->AddContact();
 	if (szProto)
-		db_set_s(hNew, "Protocol", "p", szProto);
+		db_set_s(hContact, "Protocol", "p", szProto);
+	if (flags & DBAC_HIDDEN) {
+		DBVARIANT dbv;
+		dbv.type = DBVT_BYTE_HIDDEN;
+		dbv.bVal = 1;
+		g_pCurrDb->WriteContactSetting(hContact, "CList", "Hidden", &dbv);
+	}
+	if (flags & DBAC_NOTINLIST) {
+		DBVARIANT dbv;
+		dbv.type = DBVT_BYTE_HIDDEN;
+		dbv.bVal = 1;
+		g_pCurrDb->WriteContactSetting(hContact, "CList", "NotOnList", &dbv);
+	}
 
-	Netlib_Logf(nullptr, "New contact created for module %s: %d", (szProto) ? szProto : "<none>", hNew);
+	Netlib_Logf(nullptr, "New contact created for module %s: %d", (szProto) ? szProto : "<none>", hContact);
 
 	// send notifications
 	if (pa && pa->ppro)
-		pa->ppro->OnContactAdded(hNew);
-	NotifyEventHooks(hevContactAdded, hNew, 0);
-	return hNew;
+		pa->ppro->OnContactAdded(hContact);
+	NotifyEventHooks(hevContactAdded, hContact, 0);
+	return hContact;
 }
 
 MIR_CORE_DLL(int) db_delete_contact(MCONTACT hContact, uint32_t flags)

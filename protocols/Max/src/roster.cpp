@@ -566,7 +566,6 @@ MCONTACT CMaxProto::EnsureUserContact(const char *szUid, const wchar_t *wszFirst
 		setString(hContact, DB_KEY_MAX_UID, szUid);
 		setByte(hContact, "Auth", 1);
 		setByte(hContact, "Grant", 1);
-		Contact::PutOnList(hContact);
 		setByte(hContact, DB_KEY_MAX_PEER_ORIGIN, MAX_PEER_ORIGIN_CHATONLY);
 	}
 

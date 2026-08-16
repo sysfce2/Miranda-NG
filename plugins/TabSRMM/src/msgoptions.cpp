@@ -475,9 +475,7 @@ public:
 	{
 		SetParent(hwndParent);
 
-		m_hContact = db_add_contact(META_PROTO);
-		Contact::Hide(m_hContact);
-		Contact::RemoveFromList(m_hContact);
+		m_hContact = db_add_contact(META_PROTO, DBAC_HIDDEN | DBAC_NOTINLIST);
 		db_set_ws(m_hContact, META_PROTO, "Nick", TranslateT("Test contact"));
 
 		m_pContainer = new TContainerData();
