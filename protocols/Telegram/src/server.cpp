@@ -1169,8 +1169,7 @@ void CTelegramProto::ProcessOption(TD::updateOption *pObj)
 			pUser->hContact = 0;
 		}
 		else {
-			m_iSavedMessages = db_add_contact();
-			Proto_AddToContact(m_iSavedMessages, m_szModuleName);
+			m_iSavedMessages = db_add_contact(m_szModuleName);
 			SetId(m_iSavedMessages, m_iOwnId);
 			Clist_SetGroup(m_iSavedMessages, m_wszDefaultGroup);
 

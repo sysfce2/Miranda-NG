@@ -80,7 +80,7 @@ EXTERN_C MIR_CORE_DLL(int) db_delete_module(MCONTACT hContact, const char *szMod
 // Returns a handle to the newly created contact on success, or NULL otherwise.
 // Triggers a db/contact/added event just before it returns.
 
-EXTERN_C MIR_CORE_DLL(MCONTACT) db_add_contact(void);
+EXTERN_C MIR_CORE_DLL(MCONTACT) db_add_contact(const char *szModule);
 
 // Deletes the contact hContact from the database and all events and settings associated with it.
 // The 'flags' parameter could be zero of any combination of CDF_* constants

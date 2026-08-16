@@ -97,10 +97,8 @@ MCONTACT CIrcProto::CList_AddContact(CONTACT *user, bool InList, bool SetOnline)
 	}
 
 	// here we create a new one since no one is to be found
-	hContact = db_add_contact();
+	hContact = db_add_contact(m_szModuleName);
 	if (hContact) {
-		Proto_AddToContact(hContact, m_szModuleName);
-
 		if (InList)
 			Contact::PutOnList(hContact);
 		else

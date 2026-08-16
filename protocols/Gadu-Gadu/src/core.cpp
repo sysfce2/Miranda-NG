@@ -1421,8 +1421,7 @@ MCONTACT GaduProto::getcontact(uin_t uin, int create, int inlist, wchar_t *szNic
 	if (!create)
 		return NULL;
 
-	MCONTACT hContact = db_add_contact();
-	Proto_AddToContact(hContact, m_szModuleName);
+	MCONTACT hContact = db_add_contact(m_szModuleName);
 
 	debugLogA("getcontact(): Added buddy: %d", uin);
 	if (!inlist)

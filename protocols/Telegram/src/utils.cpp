@@ -398,8 +398,7 @@ TG_USER* CTelegramProto::AddUser(int64_t id, bool bIsChat)
 		if (pUser->hContact != INVALID_CONTACT_ID)
 			return pUser;
 
-	MCONTACT hContact = db_add_contact();
-	Proto_AddToContact(hContact, m_szModuleName);
+	MCONTACT hContact = db_add_contact(m_szModuleName);
 
 	SetId(hContact, id);
 

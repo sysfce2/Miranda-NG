@@ -154,8 +154,7 @@ WAUser* WhatsAppProto::AddUser(const char *szId, bool bTemporary)
 	if (pUser != nullptr)
 		return pUser;
 
-	MCONTACT hContact = db_add_contact();
-	Proto_AddToContact(hContact, m_szModuleName);
+	MCONTACT hContact = db_add_contact(m_szModuleName);
 	setString(hContact, DBKEY_ID, szId);
 
 	pUser = new WAUser(hContact, mir_strdup(szId));

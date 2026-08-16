@@ -78,8 +78,7 @@ MCONTACT CToxProto::AddContact(const char *address, const wchar_t *nick, const w
 	if (hContact)
 		return hContact;
 
-	hContact = db_add_contact();
-	Proto_AddToContact(hContact, m_szModuleName);
+	hContact = db_add_contact(m_szModuleName);
 
 	setString(hContact, TOX_SETTINGS_ID, address);
 

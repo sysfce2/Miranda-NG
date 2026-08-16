@@ -475,8 +475,7 @@ public:
 	{
 		SetParent(hwndParent);
 
-		m_hContact = db_add_contact();
-		Proto_AddToContact(m_hContact, m_szProto = META_PROTO);
+		m_hContact = db_add_contact(META_PROTO);
 		Contact::Hide(m_hContact);
 		Contact::RemoveFromList(m_hContact);
 		db_set_ws(m_hContact, META_PROTO, "Nick", TranslateT("Test contact"));

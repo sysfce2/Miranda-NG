@@ -94,10 +94,29 @@ MIR_CORE_DLL(int) db_copy_module(const char *szModule, const char *szNewModule, 
 /////////////////////////////////////////////////////////////////////////////////////////
 // contact functions
 
-MIR_CORE_DLL(MCONTACT) db_add_contact(void)
+MIR_CORE_DLL(MCONTACT) db_add_contact(const char *szModule)
 {
-	MCONTACT hNew = (g_pCurrDb) ? g_pCurrDb->AddContact() : 0;
-	Netlib_Logf(nullptr, "New contact created: %d", hNew);
+	if (!g_pCurrDb) // if there's no active database, don't even start
+		return 0;
+
+	PROTOACCOUNT *pa = nullptr;
+	const char *szProto = nullptr;
+	if (pa = Proto_GetAccount(szModule))
+		szProto = szModule;
+	else if (auto *pd = Proto_IsProtocolLoaded(szModule)) {
+		if (pd->type == PROTOTYPE_PROTOCOL || pd->type == PROTOTYPE_VIRTUAL || pd->type == PROTOTYPE_PROTOWITHACCS)
+			szProto = szModule;
+	}
+
+	if (szModule && !szProto)
+		return 0;
+
+	MCONTACT hNew = g_pCurrDb->AddContact();
+	if (szProto)
+		db_set_s(hNew, "Protocol", "p", szProto);
+	if (pa && pa->ppro)
+		pa->ppro->OnContactAdded(hNew);
+	Netlib_Logf(nullptr, "New contact created for module %s: %d", (szProto) ? szProto : "<none>", hNew);
 	return hNew;
 }
 

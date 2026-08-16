@@ -289,8 +289,7 @@ MCONTACT CVkProto::FindUser(VKUserID_t dwUserid, bool bCreate)
 	if (!bCreate)
 		return 0;
 
-	MCONTACT hNewContact = db_add_contact();
-	Proto_AddToContact(hNewContact, m_szModuleName);
+	MCONTACT hNewContact = db_add_contact(m_szModuleName);
 	WriteVKUserID(hNewContact, dwUserid);
 	Clist_SetGroup(hNewContact, m_vkOptions.pwszDefaultGroup);
 	if (GetVKPeerType(dwUserid) == VKPeerType::vkPeerGroup)

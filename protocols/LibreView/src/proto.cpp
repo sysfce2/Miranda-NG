@@ -152,15 +152,12 @@ MCONTACT CLibreViewProto::EnsureAccountContact()
 	if (m_hContact)
 		return m_hContact;
 
-	MCONTACT hContact = db_add_contact();
+	MCONTACT hContact = db_add_contact(m_szModuleName);
 	if (hContact == 0)
 		return 0;
 
-	Proto_AddToContact(hContact, m_szModuleName);
-
 	// Use account name as contact Nick
 	setWString(hContact, "Nick", m_tszUserName);
-
 
 	m_hContact = hContact;
 	Ignore_Ignore(hContact, IGNOREEVENT_USERONLINE);

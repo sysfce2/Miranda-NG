@@ -322,8 +322,7 @@ MCONTACT CDiscordProto::AddToList(int flags, PROTOSEARCHRESULT *psr)
 	if (p == nullptr)
 		return 0;
 
-	MCONTACT hContact = db_add_contact();
-	Proto_AddToContact(hContact, m_szModuleName);
+	MCONTACT hContact = db_add_contact(m_szModuleName);
 	if (flags & PALF_TEMPORARY)
 		Contact::RemoveFromList(hContact);
 	

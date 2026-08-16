@@ -61,8 +61,7 @@ MCONTACT CJabberProto::DBCreateContact(const char *jid, const char *nick, bool t
 	else
 		strncpy_s(szJid, jid, _TRUNCATE);
 
-	MCONTACT hNewContact = db_add_contact();
-	Proto_AddToContact(hNewContact, m_szModuleName);
+	MCONTACT hNewContact = db_add_contact(m_szModuleName);
 	setUString(hNewContact, "jid", szJid);
 	if (nick != nullptr && *nick != '\0')
 		setUString(hNewContact, "Nick", nick);

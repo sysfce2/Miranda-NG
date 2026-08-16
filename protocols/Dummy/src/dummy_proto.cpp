@@ -211,8 +211,7 @@ MCONTACT CDummyProto::AddToList(int flags, PROTOSEARCHRESULT* psr)
 	if (psr->id.w == nullptr)
 		return NULL;
 
-	MCONTACT hContact = db_add_contact();
-	Proto_AddToContact(hContact, m_szModuleName);
+	MCONTACT hContact = db_add_contact(m_szModuleName);
 
 	if (flags & PALF_TEMPORARY) {
 		Contact::Hide(hContact);
