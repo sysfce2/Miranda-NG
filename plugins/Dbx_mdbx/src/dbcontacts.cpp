@@ -120,7 +120,6 @@ MCONTACT CDbxMDBX::AddContact()
 
 	DBFlush();
 
-	NotifyEventHooks(g_hevContactAdded, dwContactId, 0);
 	return dwContactId;
 }
 

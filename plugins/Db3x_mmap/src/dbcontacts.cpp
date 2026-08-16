@@ -135,8 +135,6 @@ STDMETHODIMP_(MCONTACT) CDb3Mmap::AddContact()
 
 	DBCachedContact *cc = m_cache->AddContactToCache(dbc.dwContactID);
 	cc->dwOfsContact = ofsNew;
-
-	NotifyEventHooks(g_hevContactAdded, dbc.dwContactID, 0);
 	return dbc.dwContactID;
 }
 
