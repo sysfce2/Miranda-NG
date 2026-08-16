@@ -52,6 +52,8 @@ public:
 
 	INT_PTR  GetCaps(int type, MCONTACT hContact = NULL) override;
 
+	HANDLE   SearchBasic(const wchar_t *id) override;
+
 	int      SendMsg(MCONTACT hContact, MEVENT, const char *msg) override;
 
 	HANDLE   SendFile(MCONTACT hContact, const wchar_t *, wchar_t **ppszFiles) override;
@@ -185,6 +187,8 @@ private:
 	void InitCustomDbEvents();
 
 	static INT_PTR EventGetIcon(WPARAM wParam, LPARAM lParam);
+
+	void __cdecl SearchThread(void *arg);
 
 	void __cdecl SendMessageAsync(void *arg);
 	int OnSendMessage(MCONTACT hContact, const char *message);
