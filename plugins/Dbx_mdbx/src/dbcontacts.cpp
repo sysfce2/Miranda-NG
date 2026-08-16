@@ -37,14 +37,9 @@ int CDbxMDBX::GetContactSize(void)
 
 int CDbxMDBX::DeleteContact(MCONTACT contactID)
 {
-	if (contactID == 0) // global contact cannot be removed
-		return 1;
-
 	DBCachedContact *cc = m_cache->GetCachedContact(contactID);
 	if (cc == nullptr)
 		return 1;
-
-	NotifyEventHooks(g_hevContactDeleted, contactID, 0);
 
 	// remove event sorting keys owned by contact
 	Netlib_Log(0, "Started wipe history");
