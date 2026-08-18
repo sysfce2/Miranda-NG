@@ -305,6 +305,7 @@ private:
 
 	//==== Files Upload ==================================================================
 
+	CVkFileUploadParam* SendFile(CVkFileUploadParam *fup);
 	void SendFileFailed(CVkFileUploadParam *fup, int ErrorCode);
 	void OnReciveUploadServer(MHttpResponse*, AsyncHttpRequest*);
 	void OnReciveUpload(MHttpResponse*, AsyncHttpRequest*);
