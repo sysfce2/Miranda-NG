@@ -391,12 +391,21 @@ void CTelegramProto::ProcessBasicGroup(TD::updateBasicGroup *pObj)
 	pUser->bLoadMembers = true;
 }
 
+void CTelegramProto::HideBots(const TD::array<TD::object_ptr<TD::botCommands>> &bots)
+{
+	for (auto &it : bots)
+		if (auto *pUser = FindUser(it->bot_user_id_))
+			Contact::Hide(pUser->hContact);
+}
+
 void CTelegramProto::ProcessBasicGroupInfo(TG_USER *pChat, TD::basicGroupFullInfo *pInfo)
 {
 	if (!pInfo->description_.empty()) {
 		setUString(pChat->hContact, "About", pInfo->description_.c_str());
 		GcChangeTopic(pChat, pInfo->description_);
 	}
+
+	HideBots(pInfo->bot_commands_);
 
 	g_chatApi.UM_RemoveAll(pChat->m_si);
 	GcAddMembers(pChat, pInfo->members_, true);
@@ -416,6 +425,8 @@ void CTelegramProto::ProcessSuperGroupInfo(TG_USER *pUser, TD::supergroupFullInf
 		else delSetting(pUser->hContact, "Link");
 	}
 	else delSetting(pUser->hContact, "Link");
+
+	HideBots(pInfo->bot_commands_);
 
 	if (!pInfo->description_.empty()) {
 		setUString(pUser->hContact, "About", pInfo->description_.c_str());

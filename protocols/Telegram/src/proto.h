@@ -375,6 +375,8 @@ class CTelegramProto : public PROTO<CTelegramProto>
 	TG_USER* AddFakeUser(int64_t id, bool bIsChat);
 	TG_USER* GetSender(const TD::MessageSender *pSender);
 	
+	void     HideBots(const TD::array<TD::object_ptr<TD::botCommands>> &bots);
+
 	TG_SUPER_GROUP* FindSuperGroup(int64_t id);
 
 	int64_t  GetId(MCONTACT, const char *pszSetting = DBKEY_ID);
