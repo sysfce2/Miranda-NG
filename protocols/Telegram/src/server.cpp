@@ -495,8 +495,6 @@ void CTelegramProto::OnGetHistory(td::ClientManager::Response &response, void *p
 	auto *pMessages = (TD::messages *)response.object.get();
 	if (pMessages->messages_.size() == 0) {
 		History::FinishLoad(GetRealContact(pUser));
-		if (pUser->isForum)
-			delete pUser;
 		return;
 	}
 	
@@ -540,26 +538,13 @@ void CTelegramProto::OnGetHistory(td::ClientManager::Response &response, void *p
 	}
 
 	// fetch next portion
-	if (pUser->isForum)
-		SendQuery(new TD::getMessageThreadHistory(pUser->chatId, lastMsgId, lastMsgId, 0, 100), &CTelegramProto::OnGetHistory, pUser);
-	else
-		SendQuery(new TD::getChatHistory(pUser->chatId, lastMsgId, 0, 100, false), &CTelegramProto::OnGetHistory, pUser);
+	SendQuery(new TD::getChatHistory(pUser->chatId, lastMsgId, 0, 100, false), &CTelegramProto::OnGetHistory, pUser);
 }
 
 INT_PTR CTelegramProto::SvcLoadServerHistory(WPARAM hContact, LPARAM)
 {
 	auto userId = GetId(hContact);
 
-	if (TD::int53 threadId = GetId(hContact, DBKEY_THREAD)) {
-		if (FindChat(userId)) {
-			auto *pUser = new TG_USER(-1, hContact, true);
-			pUser->chatId = userId;
-			pUser->isForum = pUser->isGroupChat = true;
-			SendQuery(new TD::getMessageThreadHistory(pUser->chatId, threadId, 0, 0, 100), &CTelegramProto::OnGetHistory, pUser);
-			return 0;
-		}
-	}
-	
 	if (auto *pUser = FindUser(userId))
 		SendQuery(new TD::getChatHistory(pUser->chatId, 0, 0, 100, false), &CTelegramProto::OnGetHistory, pUser);
 
